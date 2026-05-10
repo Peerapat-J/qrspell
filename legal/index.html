@@ -8,58 +8,61 @@
     <link rel="stylesheet" href="../styles.css">
   </head>
   <body>
-    <main class="page">
-      <nav class="nav" aria-label="Main navigation">
-        <a class="brand" href="/qrspell/">QRSpell</a>
-        <div class="links">
-          <a href="/qrspell/privacy/">Privacy</a>
-          <a href="/qrspell/legal/">Legal</a>
-        </div>
-      </nav>
+    <div class="page-shell">
+      <header class="page-header">
+        <a class="brand" href="../" aria-label="QRSpell home">
+          <img src="../assets/qrspell-app-icon.png" alt="" width="40" height="40">
+          <span>QRSpell</span>
+        </a>
+        <nav class="nav-links" aria-label="Main navigation">
+          <a href="../helpcenter/">Help Center</a>
+          <a href="../changelog/">Changelog</a>
+          <a href="../privacy/">Privacy</a>
+          <a href="../legal/">Legal</a>
+        </nav>
+      </header>
 
-      <section class="hero">
-        <p class="eyebrow">Last updated: April 30, 2026</p>
-        <h1>Legal Notices</h1>
-        <p class="lead">
-          QRSpell is proprietary software by Peerapat Jardrit. All rights are reserved unless
-          otherwise stated.
-        </p>
-      </section>
-
-      <section class="section">
-        <h2>QRSpell</h2>
-        <p>
-          Copyright &copy; 2026 Peerapat Jardrit. All rights reserved.
-        </p>
-        <p>
-          Apps distributed through the Mac App Store are licensed under Apple's Standard End User
-          License Agreement unless a custom license is provided through App Store Connect.
-        </p>
-
-        <h2>Third-Party Notices</h2>
-        <div class="panel">
-          <h3>KeyboardShortcuts</h3>
+      <main>
+        <section class="page-hero" aria-labelledby="legal-title">
+          <h1 id="legal-title">Legal Notices</h1>
           <p>
-            QRSpell uses KeyboardShortcuts by Sindre Sorhus and contributors.
-            KeyboardShortcuts is licensed under the MIT License.
+            QRSpell is proprietary software by Peerapat Jardrit. All rights are reserved unless
+            otherwise stated.
           </p>
-          <p>
-            Copyright &copy; Sindre Sorhus.
-          </p>
-          <p>
-            Source: <a href="https://github.com/sindresorhus/KeyboardShortcuts">github.com/sindresorhus/KeyboardShortcuts</a>
-          </p>
-        </div>
+        </section>
 
-        <h2>Disclaimer</h2>
-        <p>
-          QRSpell is provided as-is, without warranties of any kind, to the extent permitted by law.
-        </p>
-      </section>
+        <section class="content-section">
+          <h2>QRSpell</h2>
+          <p>Copyright &copy; 2026 Peerapat Jardrit. All rights reserved.</p>
+          <p>
+            Apps distributed through the Mac App Store are licensed under Apple's Standard End User
+            License Agreement unless a custom license is provided through App Store Connect.
+          </p>
 
-      <footer class="footer">
+          <h2>Third-Party Notices</h2>
+          <div class="notice-card">
+            <h3>KeyboardShortcuts</h3>
+            <p>
+              QRSpell uses KeyboardShortcuts by Sindre Sorhus and contributors.
+              KeyboardShortcuts is licensed under the MIT License.
+            </p>
+            <p>Copyright &copy; Sindre Sorhus.</p>
+          </div>
+
+          <h2>Disclaimer</h2>
+          <p>QRSpell is provided as-is, without warranties of any kind, to the extent permitted by law.</p>
+        </section>
+      </main>
+
+      <footer class="page-footer">
         <p>&copy; 2026 Peerapat Jardrit. All rights reserved.</p>
+        <nav aria-label="Footer navigation">
+          <a href="../helpcenter/">Help Center</a>
+          <a href="../changelog/">Changelog</a>
+          <a href="../privacy/">Privacy</a>
+          <a href="../legal/">Legal</a>
+        </nav>
       </footer>
-    </main>
+    </div>
   </body>
 </html>
