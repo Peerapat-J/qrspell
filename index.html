@@ -3,13 +3,16 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>QRSpell - QR screen scanning for Mac</title>
+    <title>QRSpell - Scan QR codes on your Mac screen</title>
     <meta name="description" content="QRSpell is a lightweight macOS menu bar app for scanning QR codes from your screen with local, offline privacy.">
     <meta property="og:title" content="QRSpell">
-    <meta property="og:description" content="QR screen scanning for Mac.">
+    <meta property="og:description" content="Scan QR codes on your Mac screen.">
     <meta property="og:image" content="https://peerapat-j.github.io/qrspell/assets/qrspell-app-icon.png">
+    <link rel="icon" type="image/png" href="assets/qrspell-app-icon.png">
+    <link rel="apple-touch-icon" href="assets/qrspell-app-icon.png">
     <link rel="preload" href="assets/qrspell-app-icon.png" as="image">
     <link rel="stylesheet" href="styles.css">
+    <script src="site.js" defer></script>
   </head>
   <body>
     <header class="site-header">
@@ -18,21 +21,21 @@
         <span>QRSpell</span>
       </a>
       <nav class="nav-links" aria-label="Main navigation">
-        <a href="helpcenter/">Help Center</a>
+        <span class="nav-placeholder" aria-disabled="true">Download</span>
         <a href="changelog/">Changelog</a>
         <a href="privacy/">Privacy</a>
         <a href="legal/">Legal</a>
+        <a href="helpcenter/">Help Center</a>
       </nav>
     </header>
 
     <main>
       <section class="hero" aria-labelledby="hero-title">
         <img class="hero-icon" src="assets/qrspell-app-icon.png" alt="" width="140" height="140">
-        <h1 id="hero-title">QR screen scanning for Mac</h1>
+        <h1 id="hero-title">Scan QR codes on your Mac screen</h1>
         <p class="hero-copy">
-          QRSpell lives in your menu bar and reads QR codes already visible on your screen. Use a
-          shortcut, scan an area or full screen, then choose a popup result or a quieter
-          clipboard-only flow.
+          QRSpell lives in your menu bar. Use a shortcut to scan an area or full screen, then revisit
+          recent QR results in history.
         </p>
         <div class="store-cta" aria-label="Mac App Store availability">
           <img class="app-store-badge" src="assets/app-store-badge.svg" alt="Download on the App Store" width="163" height="48">
@@ -43,9 +46,94 @@
       <section class="intro" aria-labelledby="intro-title">
         <h2 id="intro-title">A small utility for QR codes that are already on your Mac.</h2>
         <p>
-          QRSpell is built for moments when a QR code appears in a browser, PDF, presentation, chat,
-          or another app and you want the result without reaching for your phone.
+          QRSpell is built for moments when a QR code appears anywhere on your Mac screen and you
+          want the result without reaching for your phone.
         </p>
+      </section>
+
+      <section class="demo-suite" aria-labelledby="demo-title">
+        <div class="section-heading">
+          <h2 id="demo-title">See QRSpell in action.</h2>
+          <p>Scan a selected area, detect QR codes already on screen, then review settings and history.</p>
+        </div>
+
+        <div class="demo-videos">
+          <article class="demo-item">
+            <div class="demo-frame">
+              <video
+                autoplay
+                loop
+                muted
+                playsinline
+                preload="metadata"
+                poster="assets/demo/demo-area-selection-poster.jpg"
+                aria-label="QRSpell scanning a selected screen area"
+              >
+                <source src="assets/demo/demo-area-selection.mp4" type="video/mp4">
+              </video>
+            </div>
+            <div class="media-caption">
+              <h3>Scan a selected area</h3>
+              <p>Drag over the QR code when you only want QRSpell to read part of the screen.</p>
+            </div>
+          </article>
+
+          <article class="demo-item">
+            <div class="demo-frame">
+              <video
+                autoplay
+                loop
+                muted
+                playsinline
+                preload="metadata"
+                poster="assets/demo/demo-all-screen-detect-poster.jpg"
+                aria-label="QRSpell detecting QR codes visible on the screen"
+              >
+                <source src="assets/demo/demo-all-screen-detect.mp4" type="video/mp4">
+              </video>
+            </div>
+            <div class="media-caption">
+              <h3>Auto-detect visible QR codes</h3>
+              <p>Let QRSpell scan the visible screen when the code is already in view.</p>
+            </div>
+          </article>
+        </div>
+
+        <div class="demo-carousels">
+          <article class="demo-item" data-carousel aria-label="QRSpell settings screenshots">
+            <div class="media-caption">
+              <h3>Settings</h3>
+              <p>Adjust shortcuts, scan behavior, menu bar options, and notifications.</p>
+            </div>
+            <div class="carousel-frame">
+              <button class="carousel-control carousel-control-prev" type="button" data-carousel-prev aria-label="Previous settings screenshot">&lsaquo;</button>
+              <div class="carousel-slides">
+                <img class="carousel-slide" src="assets/demo/settings-general.png" alt="QRSpell General settings with launch at login, menu bar icon, and shortcut controls">
+                <img class="carousel-slide" src="assets/demo/settings-scan.png" alt="QRSpell Scan settings" hidden>
+                <img class="carousel-slide" src="assets/demo/settings-scan-results.png" alt="QRSpell scan result settings" hidden>
+                <img class="carousel-slide" src="assets/demo/settings-notifications.png" alt="QRSpell notification settings" hidden>
+              </div>
+              <button class="carousel-control carousel-control-next" type="button" data-carousel-next aria-label="Next settings screenshot">&rsaquo;</button>
+              <div class="carousel-dots" data-carousel-dots aria-label="Settings screenshot navigation"></div>
+            </div>
+          </article>
+
+          <article class="demo-item" data-carousel aria-label="QRSpell history screenshots">
+            <div class="media-caption">
+              <h3>History</h3>
+              <p>Look back at recent scan results and manage older records.</p>
+            </div>
+            <div class="carousel-frame carousel-frame-wide">
+              <button class="carousel-control carousel-control-prev" type="button" data-carousel-prev aria-label="Previous history screenshot">&lsaquo;</button>
+              <div class="carousel-slides">
+                <img class="carousel-slide" src="assets/demo/history-compact.png" alt="QRSpell history window with recent scan results">
+                <img class="carousel-slide" src="assets/demo/history-full.png" alt="QRSpell full history window with search and result list" hidden>
+              </div>
+              <button class="carousel-control carousel-control-next" type="button" data-carousel-next aria-label="Next history screenshot">&rsaquo;</button>
+              <div class="carousel-dots" data-carousel-dots aria-label="History screenshot navigation"></div>
+            </div>
+          </article>
+        </div>
       </section>
 
       <section class="feature-section" aria-labelledby="scan-title">
@@ -86,6 +174,10 @@
             <p>Show scan results when useful, or copy values without interrupting your focus.</p>
           </article>
           <article>
+            <h3>Recent scan history</h3>
+            <p>Revisit earlier QR results from the menu bar or history window.</p>
+          </article>
+          <article>
             <h3>Lightweight menu bar app</h3>
             <p>QRSpell stays close in the menu bar instead of taking over your desktop.</p>
           </article>
@@ -109,7 +201,7 @@
 
       <section class="closing" aria-labelledby="closing-title">
         <img src="assets/qrspell-app-icon.png" alt="" width="84" height="84">
-        <h2 id="closing-title">QR scanning, kept close to the menu bar.</h2>
+        <h2 id="closing-title">Scan QR codes faster in your daily workflow.</h2>
         <div class="store-cta store-cta-centered" aria-label="Mac App Store availability">
           <img class="app-store-badge" src="assets/app-store-badge.svg" alt="Download on the App Store" width="163" height="48">
           <span>Coming soon</span>
@@ -120,10 +212,11 @@
     <footer class="footer">
       <p>&copy; 2026 Peerapat Jardrit. All rights reserved.</p>
       <nav aria-label="Footer navigation">
-        <a href="helpcenter/">Help Center</a>
+        <span class="nav-placeholder" aria-disabled="true">Download</span>
         <a href="changelog/">Changelog</a>
         <a href="privacy/">Privacy</a>
         <a href="legal/">Legal</a>
+        <a href="helpcenter/">Help Center</a>
       </nav>
     </footer>
   </body>

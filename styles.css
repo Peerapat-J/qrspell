@@ -69,6 +69,7 @@ textarea {
 .site-header,
 .hero,
 .intro,
+.demo-suite,
 .feature-section,
 .privacy-note,
 .closing,
@@ -98,11 +99,11 @@ textarea {
 .hero-icon,
 .closing img {
   border-radius: 22%;
-  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.14);
+  filter: drop-shadow(0 14px 28px rgba(15, 23, 42, 0.14));
 }
 
 .brand img {
-  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.12);
+  filter: drop-shadow(0 8px 14px rgba(15, 23, 42, 0.12));
 }
 
 .nav-links,
@@ -113,6 +114,10 @@ textarea {
   color: var(--muted);
   font-size: 14px;
   font-weight: 520;
+}
+
+.nav-placeholder {
+  cursor: default;
 }
 
 .hero {
@@ -191,9 +196,157 @@ h3 {
 }
 
 .intro p,
+.section-heading p,
 .feature-section > div:first-child p,
 .privacy-note p {
   font-size: 18px;
+}
+
+.demo-suite {
+  padding: 104px 0 0;
+}
+
+.section-heading {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(280px, 0.72fr);
+  gap: 54px;
+  align-items: start;
+}
+
+.section-heading p {
+  max-width: 520px;
+}
+
+.demo-videos {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+  margin-top: 42px;
+}
+
+.demo-carousels {
+  display: grid;
+  gap: 76px;
+  margin-top: 78px;
+}
+
+.demo-item {
+  min-width: 0;
+}
+
+.demo-frame,
+.carousel-frame {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #050505;
+  box-shadow: 0 16px 44px rgba(15, 23, 42, 0.08);
+}
+
+.demo-frame {
+  aspect-ratio: 4 / 3;
+}
+
+.demo-frame video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.media-caption {
+  max-width: 580px;
+  margin-top: 18px;
+}
+
+.demo-carousels .media-caption {
+  margin-bottom: 18px;
+}
+
+.media-caption p {
+  margin-top: 8px;
+  font-size: 15px;
+}
+
+.carousel-frame {
+  position: relative;
+  display: grid;
+  place-items: center;
+  height: clamp(390px, 62vw, 650px);
+}
+
+.carousel-slides {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  place-items: center;
+}
+
+.carousel-slide {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.carousel-slide[hidden] {
+  display: none;
+}
+
+.carousel-control {
+  position: absolute;
+  z-index: 2;
+  top: 50%;
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  transform: translateY(-50%);
+  border: 1px solid rgba(255, 255, 255, 0.36);
+  border-radius: 50%;
+  background: rgba(15, 23, 42, 0.52);
+  color: #ffffff;
+  cursor: pointer;
+  font-size: 32px;
+  line-height: 1;
+  backdrop-filter: blur(12px);
+}
+
+.carousel-control:hover {
+  background: rgba(15, 23, 42, 0.72);
+  color: #ffffff;
+}
+
+.carousel-control-prev {
+  left: 14px;
+}
+
+.carousel-control-next {
+  right: 14px;
+}
+
+.carousel-dots {
+  position: absolute;
+  z-index: 2;
+  bottom: 16px;
+  left: 50%;
+  display: flex;
+  gap: 8px;
+  transform: translateX(-50%);
+}
+
+.carousel-dot {
+  width: 9px;
+  height: 9px;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.82);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.42);
+  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.45);
+  cursor: pointer;
+}
+
+.carousel-dot.is-active {
+  background: #ffffff;
+  transform: scale(1.16);
 }
 
 .feature-section {
@@ -276,7 +429,9 @@ h3 {
 }
 
 .closing h2 {
-  max-width: 650px;
+  max-width: 980px;
+  font-size: clamp(26px, 3vw, 34px);
+  line-height: 1.08;
 }
 
 .store-cta-centered {
@@ -359,6 +514,12 @@ h3 {
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--surface);
+}
+
+.faq-item h3,
+.notice-card h3,
+.release-card h3 {
+  margin-top: 0;
 }
 
 .faq-item p,
@@ -486,6 +647,7 @@ h3 {
   .site-header,
   .hero,
   .intro,
+  .demo-suite,
   .feature-section,
   .privacy-note,
   .closing,
@@ -544,8 +706,26 @@ h3 {
     padding-top: 68px;
   }
 
+  .section-heading {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
   .intro {
     padding-bottom: 60px;
+  }
+
+  .demo-suite {
+    padding-top: 68px;
+  }
+
+  .demo-videos {
+    grid-template-columns: 1fr;
+  }
+
+  .demo-carousels {
+    gap: 58px;
+    margin-top: 58px;
   }
 
   .feature-section-alt > div:first-child,
@@ -573,6 +753,7 @@ h3 {
   .site-header,
   .hero,
   .intro,
+  .demo-suite,
   .feature-section,
   .privacy-note,
   .closing,
@@ -589,6 +770,7 @@ h3 {
 
   .hero-copy,
   .intro p,
+  .section-heading p,
   .feature-section > div:first-child p,
   .privacy-note p,
   .page-hero p {
