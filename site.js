@@ -1,43 +1,35 @@
 (function () {
-  const carousels = document.querySelectorAll("[data-carousel]");
+    const controlledVideos = document.querySelectorAll("[data-loop-delay], [data-playback-rate]");
 
-  carousels.forEach((carousel) => {
-    const slides = Array.from(carousel.querySelectorAll(".carousel-slide"));
-    const previousButton = carousel.querySelector("[data-carousel-prev]");
-    const nextButton = carousel.querySelector("[data-carousel-next]");
-    const dotsContainer = carousel.querySelector("[data-carousel-dots]");
-    let currentIndex = 0;
+    controlledVideos.forEach((video) => {
+        const playbackRate = Number(video.dataset.playbackRate);
+        const loopDelay = Number(video.dataset.loopDelay);
 
-    if (!slides.length || !previousButton || !nextButton || !dotsContainer) {
-      return;
-    }
+        if (Number.isFinite(playbackRate) && playbackRate > 0) {
+            const applyPlaybackRate = () => {
+                video.defaultPlaybackRate = playbackRate;
+                video.playbackRate = playbackRate;
+            };
 
-    const dots = slides.map((slide, index) => {
-      const dot = document.createElement("button");
-      dot.type = "button";
-      dot.className = "carousel-dot";
-      dot.setAttribute("aria-label", `Show screenshot ${index + 1}`);
-      dot.addEventListener("click", () => showSlide(index));
-      dotsContainer.appendChild(dot);
-      return dot;
+            applyPlaybackRate();
+            video.addEventListener("loadedmetadata", applyPlaybackRate);
+        }
+
+        if (Number.isFinite(loopDelay) && loopDelay > 0) {
+            let restartTimer;
+            video.loop = false;
+
+            video.addEventListener("ended", () => {
+                window.clearTimeout(restartTimer);
+                restartTimer = window.setTimeout(() => {
+                    video.currentTime = 0;
+                    const playPromise = video.play();
+
+                    if (playPromise && typeof playPromise.catch === "function") {
+                        playPromise.catch(() => {});
+                    }
+                }, loopDelay);
+            });
+        }
     });
-
-    function showSlide(index) {
-      currentIndex = (index + slides.length) % slides.length;
-
-      slides.forEach((slide, slideIndex) => {
-        slide.hidden = slideIndex !== currentIndex;
-      });
-
-      dots.forEach((dot, dotIndex) => {
-        const isCurrent = dotIndex === currentIndex;
-        dot.classList.toggle("is-active", isCurrent);
-        dot.setAttribute("aria-current", isCurrent ? "true" : "false");
-      });
-    }
-
-    previousButton.addEventListener("click", () => showSlide(currentIndex - 1));
-    nextButton.addEventListener("click", () => showSlide(currentIndex + 1));
-    showSlide(0);
-  });
 })();
