@@ -7,8 +7,8 @@
     --muted: #5f6b7a;
     --faint: #7b8794;
     --line: #e1e7ef;
-    --accent: #16795c;
-    --accent-soft: #e8f5ef;
+    --accent: #334155;
+    --accent-soft: #f1f5f9;
     --shadow: 0 22px 60px rgba(15, 23, 42, 0.08);
     --radius: 8px;
 }
@@ -594,7 +594,7 @@ h3 {
     gap: 32px;
     margin-top: 104px;
     padding: 36px;
-    border: 1px solid #cfe6dc;
+    border: 1px solid var(--line);
     border-radius: var(--radius);
     background: var(--accent-soft);
 }
@@ -762,7 +762,7 @@ h3 {
 }
 
 .topic-option:has(input:checked) {
-    border-color: rgba(25, 118, 83, 0.34);
+    border-color: #cbd5e1;
     background: var(--accent-soft);
     color: var(--ink);
 }
@@ -853,7 +853,7 @@ h3 {
 
 .button-link:hover {
     color: #ffffff;
-    background: #126248;
+    background: #1f2937;
 }
 
 .static-note {
