@@ -274,13 +274,13 @@ h3 {
 }
 
 .settings-showcase {
-    margin-top: 86px;
+    margin-top: 36px;
 }
 
 .multiple-qr-showcase {
     display: grid;
     grid-template-columns: minmax(260px, 0.72fr) minmax(0, 1fr);
-    gap: 64px;
+    gap: 28px;
     align-items: center;
     margin-top: 36px;
 }
@@ -303,7 +303,7 @@ h3 {
 
 .multiple-qr-visual {
     display: grid;
-    justify-items: end;
+    justify-items: start;
 }
 
 .settings-heading {
@@ -999,12 +999,12 @@ h3 {
     }
 
     .settings-showcase {
-        margin-top: 68px;
+        margin-top: 36px;
     }
 
     .multiple-qr-showcase {
         grid-template-columns: 1fr;
-        gap: 24px;
+        gap: 20px;
         margin-top: 36px;
     }
 
