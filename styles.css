@@ -277,6 +277,35 @@ h3 {
     margin-top: 86px;
 }
 
+.multiple-qr-showcase {
+    display: grid;
+    grid-template-columns: minmax(260px, 0.72fr) minmax(0, 1fr);
+    gap: 64px;
+    align-items: center;
+    margin-top: 86px;
+}
+
+.multiple-qr-copy {
+    max-width: 430px;
+}
+
+.multiple-qr-copy strong {
+    color: var(--ink);
+    font-size: 22px;
+    line-height: 1.25;
+}
+
+.multiple-qr-copy p {
+    margin-top: 10px;
+    color: var(--muted);
+    font-size: 18px;
+}
+
+.multiple-qr-visual {
+    display: grid;
+    justify-items: end;
+}
+
 .settings-heading {
     max-width: 620px;
 }
@@ -971,6 +1000,16 @@ h3 {
 
     .settings-showcase {
         margin-top: 68px;
+    }
+
+    .multiple-qr-showcase {
+        grid-template-columns: 1fr;
+        gap: 24px;
+        margin-top: 68px;
+    }
+
+    .multiple-qr-visual {
+        justify-items: start;
     }
 
     .settings-gallery {
