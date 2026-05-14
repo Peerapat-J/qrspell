@@ -111,7 +111,11 @@ function validateReference(fromFile, rawReference) {
         return;
     }
 
-    assertFileExists(resolved.file, `${fromFile} reference ${reference}`);
+    const referenceExists = assertFileExists(resolved.file, `${fromFile} reference ${reference}`);
+
+    if (!referenceExists) {
+        return;
+    }
 
     if (resolved.fragment) {
         const targetText = readText(resolved.file);
@@ -165,7 +169,7 @@ function resolveLocalReference(rawReference, fromFile) {
 }
 
 function pathFromRootReference(pathname) {
-    if (pathname === "/" || pathname === `${siteBasePath}/`) {
+    if (pathname === "/" || pathname === siteBasePath || pathname === `${siteBasePath}/`) {
         return "index.html";
     }
 
@@ -202,7 +206,10 @@ function assertFileExists(file, label) {
 
     if (!existsSync(fullPath) || !statSync(fullPath).isFile()) {
         errors.push(`Missing ${label}: ${file}`);
+        return false;
     }
+
+    return true;
 }
 
 function readText(file) {
