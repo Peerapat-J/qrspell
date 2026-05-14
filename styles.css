@@ -959,9 +959,14 @@ h3 {
     }
 
     .intro {
+        display: grid;
         grid-template-columns: 1fr;
         gap: 26px;
         padding-top: 68px;
+    }
+
+    .intro p {
+        margin-top: 0;
     }
 
     .feature-section {
