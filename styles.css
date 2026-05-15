@@ -152,7 +152,7 @@ textarea {
     bottom: -6px;
     left: 0;
     height: 1px;
-    background: currentColor;
+    background: currentcolor;
     content: "";
     opacity: 0;
     transform: scaleX(0.65);
@@ -708,7 +708,7 @@ h3 {
     font-size: 18px;
     font-weight: 400;
     line-height: 1.45;
-    white-space: nowrap;
+    white-space: normal;
 }
 
 .store-group-centered {
