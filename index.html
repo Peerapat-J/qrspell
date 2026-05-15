@@ -3,16 +3,40 @@
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
-        <title>QRSpell - Scan QR codes on your Mac screen</title>
-        <meta name="description" content="QRSpell is a lightweight macOS menu bar app for scanning QR codes from your screen with local, offline privacy.">
-        <meta property="og:title" content="QRSpell">
-        <meta property="og:description" content="Scan QR codes on your Mac screen.">
+        <title>QRSpell - Mac QR Code Scanner for Your Screen</title>
+        <meta name="description" content="QRSpell is a macOS menu bar QR code scanner for reading QR codes from your Mac screen, selected areas, or full screen with local, offline processing.">
+        <link rel="canonical" href="https://peerapat-j.github.io/qrspell/">
+        <meta property="og:type" content="website">
+        <meta property="og:url" content="https://peerapat-j.github.io/qrspell/">
+        <meta property="og:title" content="QRSpell - Mac QR Code Scanner for Your Screen">
+        <meta property="og:description" content="Scan QR codes from your Mac screen with a menu bar app built for selected areas, full-screen scanning, scan history, and local privacy.">
         <meta property="og:image" content="https://peerapat-j.github.io/qrspell/assets/qrspell-app-icon.png">
+        <meta name="twitter:card" content="summary">
+        <meta name="twitter:title" content="QRSpell - Mac QR Code Scanner for Your Screen">
+        <meta name="twitter:description" content="Scan QR codes from your Mac screen with a menu bar app built for selected areas, full-screen scanning, scan history, and local privacy.">
+        <meta name="twitter:image" content="https://peerapat-j.github.io/qrspell/assets/qrspell-app-icon.png">
         <link rel="icon" type="image/png" href="assets/qrspell-app-icon.png">
         <link rel="apple-touch-icon" href="assets/qrspell-app-icon.png">
         <link rel="preload" href="assets/qrspell-app-icon.png" as="image">
-        <link rel="stylesheet" href="styles.css?v=20260514w">
+        <link rel="stylesheet" href="styles.css?v=20260515a">
         <script src="site.js?v=20260514a" defer></script>
+        <script type="application/ld+json">
+            {
+                "@context": "https://schema.org",
+                "@type": "SoftwareApplication",
+                "name": "QRSpell",
+                "applicationCategory": "UtilitiesApplication",
+                "operatingSystem": "macOS",
+                "url": "https://peerapat-j.github.io/qrspell/",
+                "image": "https://peerapat-j.github.io/qrspell/assets/qrspell-app-icon.png",
+                "description": "QRSpell is a macOS menu bar QR code scanner for reading QR codes from your Mac screen, selected areas, or full screen with local, offline processing.",
+                "softwareVersion": "1.0",
+                "author": {
+                    "@type": "Person",
+                    "name": "Peerapat Jardrit"
+                }
+            }
+        </script>
     </head>
     <body>
         <header class="site-header">
@@ -32,30 +56,24 @@
         <main>
             <section class="hero" aria-labelledby="hero-title">
                 <img class="hero-icon" src="assets/qrspell-app-icon.png" alt="" width="140" height="140">
-                <h1 id="hero-title">Scan QR codes on your Mac screen</h1>
+                <h1 id="hero-title">QR Code Scanner for macOS</h1>
                 <p class="hero-copy">
-                    QRSpell lives in your menu bar. Use a shortcut to scan an area or full screen, then revisit
-                    recent QR results in history.
+                    Scan QR codes wherever they appear on your Mac screen and get instant results without reaching for your phone.
                 </p>
-                <div class="store-cta" aria-label="Mac App Store availability">
-                    <img class="app-store-badge" src="assets/app-store-badge.svg" alt="Download on the App Store" width="163" height="48">
-                    <span>Coming soon</span>
+                <div class="store-group" aria-label="Mac App Store availability">
+                    <div class="store-cta">
+                        <img class="app-store-badge" src="assets/app-store-badge.svg" alt="Download on the App Store" width="163" height="48">
+                        <span>Coming soon</span>
+                    </div>
+                    <p class="store-requirements">macOS 15 or later &middot; Apple silicon Mac</p>
                 </div>
-            </section>
-
-            <section class="intro" aria-labelledby="intro-title">
-                <h2 id="intro-title">The best QR code reader for macOS.</h2>
-                <p>
-                    When QR codes appear anywhere on your screen, QRSpell lets you scan them
-                    right from your Mac without reaching for your phone.
-                </p>
             </section>
 
             <section class="demo-suite" aria-labelledby="demo-title">
                 <div class="section-heading">
                     <h2 id="demo-title">See QRSpell in action.</h2>
                     <div class="section-copy">
-                        <p><strong>Trigger QRSpell from the menu bar or with a custom shortcut</strong>, select just the area you need, or scan visible screen content when the code is already in view.</p>
+                        <p><strong>Trigger QRSpell from the menu bar or with a custom keyboard shortcut</strong>, then scan a selected area or the full screen.</p>
                     </div>
                 </div>
 
@@ -76,7 +94,7 @@
                         </div>
                         <div class="media-caption">
                             <h3>Scan a selected area</h3>
-                            <p>Drag over the QR code when you only want QRSpell to read part of the screen.</p>
+                            <p>Drag over a selected area when you only want QRSpell to read part of the Mac screen.</p>
                         </div>
                     </article>
 
@@ -96,15 +114,15 @@
                             </video>
                         </div>
                         <div class="media-caption">
-                            <h3>Auto-detect visible QR codes</h3>
-                            <p>Let QRSpell scan the visible screen when the code is already in view.</p>
+                            <h3>Scan the full screen</h3>
+                            <p>Let QRSpell check the full screen when you do not need to draw a selection.</p>
                         </div>
                     </article>
                 </div>
                 <section class="multiple-qr-showcase" aria-labelledby="multiple-qr-title">
                     <div class="multiple-qr-copy">
-                        <strong id="multiple-qr-title">Multiple QR support.</strong>
-                        <p>QRSpell can handle multiple QR codes at once.</p>
+                        <strong id="multiple-qr-title">Multiple QR code support.</strong>
+                        <p>QRSpell can detect multiple QR codes at once and show the available scan results together.</p>
                     </div>
                     <div class="multiple-qr-visual">
                         <img class="results-window-image" src="assets/demo/results-window.png?v=20260514a" alt="QRSpell results window showing three detected QR code values with copy and open actions">
@@ -114,7 +132,7 @@
                 <section class="settings-showcase" aria-labelledby="settings-title">
                     <div class="settings-heading">
                         <h2 id="settings-title">Settings</h2>
-                        <p>Customize your shortcut, scan behavior, and notifications from one settings menu.</p>
+                        <p>Customize your keyboard shortcut, scan behavior, result handling, and notifications from one settings menu.</p>
                     </div>
 
                     <div class="settings-gallery">
@@ -122,14 +140,14 @@
                             <img src="assets/demo/setting-1.png?v=20260514a" alt="QRSpell General settings with launch at login, menu bar icon, and shortcut controls">
                             <figcaption>
                                 <strong>General</strong>
-                                <span>Set launch behavior, menu bar style, and set a keyboard shortcut that fits your workflow.</span>
+                                <span>Set launch behavior, menu bar style, and a keyboard shortcut that fits your workflow.</span>
                             </figcaption>
                         </figure>
                         <figure class="settings-card">
                             <img src="assets/demo/setting-2.png?v=20260514a" alt="QRSpell Scan settings with scan mode and result options">
                             <figcaption>
                                 <strong>Scan</strong>
-                                <span>Choose area selection or all visible displays, then control result behavior.</span>
+                                <span>Choose selected-area scanning or full-screen scanning across visible displays, then control result behavior.</span>
                             </figcaption>
                         </figure>
                         <figure class="settings-card">
@@ -152,8 +170,8 @@
                     <h2 id="results-title">Results can stay visible or stay out of the way.</h2>
                     <div class="notification-detail">
                         <p>
-                            Choose popup results when you want to review detected values, or keep your flow
-                            peaceful with notification or clipboard-only behavior.
+                            Choose popup results when you want to review detected QR code values, or keep your
+                            flow quiet with notification or clipboard-only behavior.
                         </p>
                     </div>
                 </div>
@@ -162,7 +180,7 @@
             <section class="history-showcase" aria-labelledby="history-title">
                 <div class="history-copy">
                     <h2 id="history-title">History</h2>
-                    <p>Review recent scans from the menu bar, or open the full history window to search, filter, delete, and clear records when you need more control.</p>
+                    <p>Review recent scans from the menu bar, or open the full scan history window to search, filter, delete, and clear records when you need more control.</p>
                 </div>
                 <div class="history-visual">
                     <img src="assets/demo/history-full.png?v=20260514a" alt="QRSpell full history window with search, filters, records, and clear history controls">
@@ -173,8 +191,8 @@
                 <div>
                     <h2 id="privacy-title">Offline and local by design.</h2>
                     <p>
-                        QR detection runs on your Mac. QRSpell does not include analytics, advertising,
-                        tracking, telemetry, or server upload for scan content.
+                        Offline QR detection runs on your Mac. QRSpell does not include analytics, advertising,
+                        tracking, telemetry, or server uploads for scan content.
                     </p>
                 </div>
                 <a class="text-link" href="privacy/">Read the Privacy Policy</a>
@@ -182,10 +200,13 @@
 
             <section class="closing" aria-labelledby="closing-title">
                 <img src="assets/qrspell-app-icon.png" alt="" width="84" height="84">
-                <h2 id="closing-title">Scan QR codes faster and easier with QRSpell.</h2>
-                <div class="store-cta store-cta-centered" aria-label="Mac App Store availability">
-                    <img class="app-store-badge" src="assets/app-store-badge.svg" alt="Download on the App Store" width="163" height="48">
-                    <span>Coming soon</span>
+                <p class="closing-note" id="closing-title">One-time purchase &middot; No subscription &middot; Private by design &middot; Lives in the menu bar</p>
+                <div class="store-group store-group-centered" aria-label="Mac App Store availability">
+                    <div class="store-cta">
+                        <img class="app-store-badge" src="assets/app-store-badge.svg" alt="Download on the App Store" width="163" height="48">
+                        <span>Coming soon</span>
+                    </div>
+                    <p class="store-requirements">macOS 15 or later &middot; Apple silicon Mac</p>
                 </div>
             </section>
         </main>
