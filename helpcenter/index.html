@@ -17,7 +17,8 @@
         <meta name="twitter:image" content="https://peerapat-j.github.io/qrspell/assets/qrspell-app-icon.png">
         <link rel="icon" type="image/png" href="../assets/qrspell-app-icon.png">
         <link rel="apple-touch-icon" href="../assets/qrspell-app-icon.png">
-        <link rel="stylesheet" href="../styles.css?v=20260515a">
+        <link rel="stylesheet" href="../styles.css?v=20260516a">
+        <script src="../site.js?v=20260516a" defer></script>
     </head>
     <body>
         <div class="page-shell">
@@ -76,7 +77,7 @@
 
                 <section class="content-section" aria-labelledby="contact-title">
                     <h2 id="contact-title">Contact</h2>
-                    <form class="contact-card" aria-describedby="contact-note">
+                    <form class="contact-card" aria-describedby="contact-note" data-contact-form>
                         <fieldset class="contact-topic">
                             <legend>Category</legend>
                             <div class="topic-options">
@@ -118,9 +119,15 @@
                             </label>
                         </div>
                         <div class="contact-actions">
-                            <a class="button-link" href="mailto:peerapat.jardrit@gmail.com?subject=QRSpell%20Contact">Email QRSpell</a>
+                            <a
+                                class="button-link"
+                                href="mailto:peerapat.jardrit@gmail.com?subject=QRSpell%20Support"
+                                data-contact-email-link
+                                data-recipient="peerapat.jardrit@gmail.com"
+                            >Email QRSpell</a>
                             <p class="static-note" id="contact-note">
-                                This form does not send yet. Please email peerapat.jardrit@gmail.com for support, bug reports, or feedback.
+                                This opens your email app with the form details filled in. QRSpell does not send or store this form on the website.<br>
+                                If this does not work, email peerapat.jardrit@gmail.com.
                             </p>
                         </div>
                     </form>

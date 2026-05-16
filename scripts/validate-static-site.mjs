@@ -8,6 +8,8 @@ const siteBasePath = normalizeSiteBasePath(process.env.SITE_BASE_PATH ?? "/qrspe
 const requiredFiles = [
     ".nojekyll",
     "index.html",
+    "robots.txt",
+    "sitemap.xml",
     "styles.css",
     "site.js",
     "privacy/index.html",

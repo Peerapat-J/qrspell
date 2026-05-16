@@ -32,4 +32,59 @@
             });
         }
     });
+
+    const contactForm = document.querySelector("[data-contact-form]");
+    const contactEmailLink = document.querySelector("[data-contact-email-link]");
+
+    if (contactForm && contactEmailLink) {
+        const recipient = contactEmailLink.dataset.recipient || "peerapat.jardrit@gmail.com";
+        const fields = ["name", "email", "message"];
+
+        const getCategoryLabel = () => {
+            const selectedCategory = contactForm.querySelector("input[name='category']:checked");
+            const label = selectedCategory?.closest("label")?.querySelector("strong")?.textContent.trim();
+
+            return label || "Support";
+        };
+
+        const buildMailto = () => {
+            const formData = new FormData(contactForm);
+            const category = getCategoryLabel();
+            const name = String(formData.get("name") || "").trim();
+            const email = String(formData.get("email") || "").trim();
+            const message = String(formData.get("message") || "").trim();
+            const subject = `QRSpell ${category}`;
+            const body = [
+                `Category: ${category}`,
+                `Name: ${name || "Not provided"}`,
+                `Email: ${email || "Not provided"}`,
+                "",
+                "Message:",
+                message || "Not provided",
+            ].join("\n");
+
+            return `mailto:${recipient}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+        };
+
+        const updateMailto = () => {
+            contactEmailLink.href = buildMailto();
+        };
+
+        fields.forEach((fieldName) => {
+            contactForm.elements[fieldName]?.addEventListener("input", updateMailto);
+        });
+
+        contactForm.querySelectorAll("input[name='category']").forEach((categoryOption) => {
+            categoryOption.addEventListener("change", updateMailto);
+        });
+
+        contactForm.addEventListener("submit", (event) => {
+            event.preventDefault();
+            updateMailto();
+            window.location.href = contactEmailLink.href;
+        });
+
+        contactEmailLink.addEventListener("click", updateMailto);
+        updateMailto();
+    }
 })();
