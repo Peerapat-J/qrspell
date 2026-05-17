@@ -17,8 +17,8 @@
         <meta name="twitter:image" content="https://peerapat-j.github.io/qrspell/assets/qrspell-app-icon.png">
         <link rel="icon" type="image/png" href="../assets/qrspell-app-icon.png">
         <link rel="apple-touch-icon" href="../assets/qrspell-app-icon.png">
-        <link rel="stylesheet" href="../styles.css?v=20260516a">
-        <script src="../site.js?v=20260516a" defer></script>
+        <link rel="stylesheet" href="../styles.css?v=20260517h">
+        <script src="../site.js?v=20260517h" defer></script>
     </head>
     <body>
         <div class="page-shell">
@@ -38,7 +38,12 @@
 
             <main>
                 <section class="page-hero" aria-labelledby="help-title">
-                    <h1 id="help-title">QRSpell Help Center</h1>
+                    <h1 id="help-title">Help Center</h1>
+                    <nav class="section-jump-links" aria-label="Help Center sections">
+                        <a href="#faq-title">FAQ</a>
+                        <a href="#email-tips-title">Before You Email</a>
+                        <a href="#contact-title">Contact</a>
+                    </nav>
                 </section>
 
                 <section class="content-section" aria-labelledby="faq-title">
@@ -70,67 +75,58 @@
                         </article>
                         <article class="faq-item">
                             <h3>Is QRSpell a subscription?</h3>
-                            <p>No. QRSpell is planned as a one-time purchase with no subscription.</p>
+                            <p>No. QRSpell is planned as a one-time purchase with no extra in-app purchases or subscription.</p>
+                        </article>
+                    </div>
+                </section>
+
+                <section class="content-section" aria-labelledby="email-tips-title">
+                    <h2 id="email-tips-title">Before You Email</h2>
+                    <div class="faq-list">
+                        <article class="faq-item">
+                            <h3>Include the basics</h3>
+                            <ul class="support-list">
+                                <li>Your name or preferred reply name.</li>
+                                <li>QRSpell version.</li>
+                                <li>macOS version, Mac model, and Apple chip, such as MacBook Air 13-inch with M2.</li>
+                                <li>How you scanned: selected area, all displays, menu bar, or keyboard shortcut.</li>
+                                <li>What happened, what you expected, and whether QRSpell showed a result, copied text, played a sound, or stayed silent.</li>
+                            </ul>
+                        </article>
+                        <article class="faq-item">
+                            <h3>Add screenshots when useful</h3>
+                            <p>Screenshots make visual issues easier to understand. Please hide private QR contents, personal URLs, or sensitive information before sending.</p>
+                        </article>
+                        <article class="faq-item">
+                            <h3>If QRSpell crashed</h3>
+                            <p>In Finder, open your home folder, then go to Library, Logs, and DiagnosticReports.</p>
+                            <p>As a shortcut, you can open Terminal, paste this command, then press Return:</p>
+                            <div class="command-copy">
+                                <code>open ~/Library/Logs/DiagnosticReports</code>
+                                <button type="button" data-copy-value="open ~/Library/Logs/DiagnosticReports">Copy</button>
+                            </div>
+                            <ol class="support-list">
+                                <li>Finder will open the folder where macOS keeps crash reports.</li>
+                                <li>Search or sort by date and look for the newest file whose name starts with <code>QRSpell</code>.</li>
+                                <li>The file may end with <code>.ips</code> or <code>.crash</code>. Attach that file to your email.</li>
+                                <li>If you do not see a QRSpell file there, just mention that no QRSpell crash report was found.</li>
+                            </ol>
                         </article>
                     </div>
                 </section>
 
                 <section class="content-section" aria-labelledby="contact-title">
                     <h2 id="contact-title">Contact</h2>
-                    <form class="contact-card" aria-describedby="contact-note" data-contact-form>
-                        <fieldset class="contact-topic">
-                            <legend>Category</legend>
-                            <div class="topic-options">
-                                <label class="topic-option">
-                                    <input type="radio" name="category" value="support" checked>
-                                    <span>
-                                        <strong>Support</strong>
-                                        <small>Questions about setup, permissions, or using QRSpell.</small>
-                                    </span>
-                                </label>
-                                <label class="topic-option">
-                                    <input type="radio" name="category" value="bug-report">
-                                    <span>
-                                        <strong>Bug report</strong>
-                                        <small>Something is not working as expected.</small>
-                                    </span>
-                                </label>
-                                <label class="topic-option">
-                                    <input type="radio" name="category" value="feedback">
-                                    <span>
-                                        <strong>Feedback</strong>
-                                        <small>Ideas, requests, or product suggestions.</small>
-                                    </span>
-                                </label>
-                            </div>
-                        </fieldset>
-                        <div class="field-grid">
-                            <label class="field">
-                                Name
-                                <input name="name" autocomplete="name">
-                            </label>
-                            <label class="field">
-                                Email
-                                <input name="email" type="email" autocomplete="email">
-                            </label>
-                            <label class="field field-full">
-                                Message
-                                <textarea name="message"></textarea>
-                            </label>
-                        </div>
+                    <div class="contact-card">
+                        <h3>Send a support email</h3>
+                        <p>Send the details above when you need help with setup, scanning, permissions, crashes, or feedback. The button opens your email app so you can write the message yourself.</p>
                         <div class="contact-actions">
                             <a
                                 class="button-link"
                                 href="mailto:peerapat.jardrit@gmail.com?subject=QRSpell%20Support"
-                                data-contact-email-link
-                                data-recipient="peerapat.jardrit@gmail.com"
-                            >Email QRSpell</a>
-                            <p class="static-note" id="contact-note">
-                                This opens your email app with the form details filled in. QRSpell does not send or store this form on the website.<br>
-                                If this does not work, email peerapat.jardrit@gmail.com.
-                            </p>
+                            >Email QRSpell Support</a>
                         </div>
-                    </form>
+                    </div>
                 </section>
             </main>
 
