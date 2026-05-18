@@ -868,9 +868,13 @@ h3 {
 }
 
 .command-copy code {
+    flex: 1 1 auto;
     min-width: 0;
     padding: 0 4px;
     background: transparent;
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
+    word-break: break-word;
 }
 
 .command-copy button {

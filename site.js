@@ -94,6 +94,10 @@
         range.selectNodeContents(code);
 
         const selection = window.getSelection();
+        if (!selection) {
+            return;
+        }
+
         selection.removeAllRanges();
         selection.addRange(range);
     }
