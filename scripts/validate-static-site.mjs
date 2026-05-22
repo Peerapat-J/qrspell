@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 
 const root = normalize(join(dirname(fileURLToPath(import.meta.url)), ".."));
 const siteBasePath = normalizeSiteBasePath(process.env.SITE_BASE_PATH ?? "/qrspell");
+const cloudflareBeaconToken = "e43189ed6f5c43d29472b9b18c73b226";
 
 const requiredFiles = [
     ".nojekyll",
@@ -48,6 +49,7 @@ for (const htmlFile of htmlFiles) {
     const html = readText(htmlFile);
     validateHtmlReferences(htmlFile, html);
     validateHtmlAnchors(htmlFile, html);
+    validateCloudflareBeacon(htmlFile, html);
 }
 
 validateCssReferences("styles.css", readText("styles.css"));
@@ -90,6 +92,37 @@ function validateHtmlAnchors(htmlFile, html) {
         if (!ids.has(fragment)) {
             errors.push(`${htmlFile} links to missing anchor #${fragment}.`);
         }
+    }
+}
+
+function validateCloudflareBeacon(htmlFile, html) {
+    const beaconScripts = [
+        ...html.matchAll(/<script\b[^>]*static\.cloudflareinsights\.com\/beacon\.min\.js[^>]*><\/script>/giu),
+    ];
+
+    if (beaconScripts.length !== 1) {
+        errors.push(`${htmlFile} must include exactly one Cloudflare Web Analytics beacon script.`);
+        return;
+    }
+
+    const beaconConfig = beaconScripts[0][0].match(/\bdata-cf-beacon\s*=\s*(["'])(.*?)\1/isu);
+
+    if (!beaconConfig) {
+        errors.push(`${htmlFile} Cloudflare Web Analytics beacon is missing data-cf-beacon.`);
+        return;
+    }
+
+    let parsedBeaconConfig;
+
+    try {
+        parsedBeaconConfig = JSON.parse(beaconConfig[2]);
+    } catch {
+        errors.push(`${htmlFile} Cloudflare Web Analytics data-cf-beacon is not valid JSON.`);
+        return;
+    }
+
+    if (parsedBeaconConfig.token !== cloudflareBeaconToken) {
+        errors.push(`${htmlFile} Cloudflare Web Analytics token does not match the expected token.`);
     }
 }
 
