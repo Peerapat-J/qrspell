@@ -107,7 +107,7 @@ textarea {
 
 .brand img,
 .hero-icon,
-.closing img {
+.closing > img {
     border-radius: 22%;
     filter: drop-shadow(0 14px 28px rgba(15, 23, 42, 0.14));
 }
@@ -137,10 +137,6 @@ textarea {
     color: var(--muted);
     font-size: 14px;
     font-weight: 520;
-}
-
-.nav-placeholder {
-    cursor: default;
 }
 
 .nav-links a,
@@ -259,6 +255,13 @@ h3 {
     color: var(--faint);
     font-size: 14px;
     font-weight: 650;
+    transition: filter 160ms ease, transform 160ms ease;
+}
+
+.store-cta:hover,
+.store-cta:focus-visible {
+    filter: drop-shadow(0 10px 16px rgba(15, 23, 42, 0.16));
+    transform: translateY(-1px);
 }
 
 .store-requirements {
@@ -269,8 +272,8 @@ h3 {
 }
 
 .app-store-badge {
-    width: 163px;
-    height: 48px;
+    width: 187px;
+    height: auto;
 }
 
 .intro {
