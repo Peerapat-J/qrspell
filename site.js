@@ -33,58 +33,72 @@
         }
     });
 
-    const contactForm = document.querySelector("[data-contact-form]");
-    const contactEmailLink = document.querySelector("[data-contact-email-link]");
+    const copyButtons = document.querySelectorAll("[data-copy-value]");
 
-    if (contactForm && contactEmailLink) {
-        const recipient = contactEmailLink.dataset.recipient || "peerapat.jardrit@gmail.com";
-        const fields = ["name", "email", "message"];
+    copyButtons.forEach((button) => {
+        const defaultText = button.textContent;
 
-        const getCategoryLabel = () => {
-            const selectedCategory = contactForm.querySelector("input[name='category']:checked");
-            const label = selectedCategory?.closest("label")?.querySelector("strong")?.textContent.trim();
+        button.addEventListener("click", async () => {
+            const value = button.dataset.copyValue || "";
 
-            return label || "Support";
-        };
+            try {
+                if (navigator.clipboard?.writeText) {
+                    await navigator.clipboard.writeText(value);
+                } else {
+                    copyTextFallback(value);
+                }
 
-        const buildMailto = () => {
-            const formData = new FormData(contactForm);
-            const category = getCategoryLabel();
-            const name = String(formData.get("name") || "").trim();
-            const email = String(formData.get("email") || "").trim();
-            const message = String(formData.get("message") || "").trim();
-            const subject = `QRSpell ${category}`;
-            const body = [
-                `Category: ${category}`,
-                `Name: ${name || "Not provided"}`,
-                `Email: ${email || "Not provided"}`,
-                "",
-                "Message:",
-                message || "Not provided",
-            ].join("\n");
+                button.textContent = "Copied";
+                button.dataset.copyState = "success";
+            } catch {
+                selectCommandText(button);
+                button.textContent = "Selected";
+                button.dataset.copyState = "fallback";
+            }
 
-            return `mailto:${recipient}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-        };
-
-        const updateMailto = () => {
-            contactEmailLink.href = buildMailto();
-        };
-
-        fields.forEach((fieldName) => {
-            contactForm.elements[fieldName]?.addEventListener("input", updateMailto);
+            window.clearTimeout(button.copyResetTimer);
+            button.copyResetTimer = window.setTimeout(() => {
+                button.textContent = defaultText;
+                delete button.dataset.copyState;
+            }, 1800);
         });
+    });
 
-        contactForm.querySelectorAll("input[name='category']").forEach((categoryOption) => {
-            categoryOption.addEventListener("change", updateMailto);
-        });
+    function copyTextFallback(value) {
+        const textArea = document.createElement("textarea");
+        textArea.value = value;
+        textArea.setAttribute("readonly", "");
+        textArea.style.position = "fixed";
+        textArea.style.left = "-9999px";
+        document.body.append(textArea);
 
-        contactForm.addEventListener("submit", (event) => {
-            event.preventDefault();
-            updateMailto();
-            window.location.href = contactEmailLink.href;
-        });
+        try {
+            textArea.select();
 
-        contactEmailLink.addEventListener("click", updateMailto);
-        updateMailto();
+            if (!document.execCommand("copy")) {
+                throw new Error("Copy command failed");
+            }
+        } finally {
+            textArea.remove();
+        }
+    }
+
+    function selectCommandText(button) {
+        const code = button.closest(".command-copy")?.querySelector("code");
+
+        if (!code || !window.getSelection) {
+            return;
+        }
+
+        const range = document.createRange();
+        range.selectNodeContents(code);
+
+        const selection = window.getSelection();
+        if (!selection) {
+            return;
+        }
+
+        selection.removeAllRanges();
+        selection.addRange(range);
     }
 })();
