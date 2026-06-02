@@ -3,6 +3,7 @@ import { dirname, join, normalize, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = normalize(join(dirname(fileURLToPath(import.meta.url)), ".."));
+const siteOrigin = process.env.SITE_ORIGIN ?? "https://peerapat-j.github.io";
 const siteBasePath = normalizeSiteBasePath(process.env.SITE_BASE_PATH ?? "/qrspell");
 const cloudflareBeaconToken = "e43189ed6f5c43d29472b9b18c73b226";
 
@@ -53,6 +54,8 @@ for (const htmlFile of htmlFiles) {
 }
 
 validateCssReferences("styles.css", readText("styles.css"));
+validateRobots(readText("robots.txt"));
+validateSitemap(readText("sitemap.xml"));
 
 if (errors.length > 0) {
     console.error("Static site validation failed:");
@@ -129,6 +132,58 @@ function validateCloudflareBeacon(htmlFile, html) {
 function validateCssReferences(cssFile, css) {
     for (const match of css.matchAll(/url\(\s*(["']?)(.*?)\1\s*\)/gi)) {
         validateReference(cssFile, match[2]);
+    }
+}
+
+function validateRobots(robots) {
+    const expectedSitemap = `Sitemap: ${siteOrigin}${siteBasePath}/sitemap.xml`;
+
+    if (!robots.includes("User-agent: *")) {
+        errors.push("robots.txt must define a default User-agent rule.");
+    }
+
+    if (!robots.includes("Allow: /")) {
+        errors.push("robots.txt must allow crawlers to access the site.");
+    }
+
+    if (!robots.includes(expectedSitemap)) {
+        errors.push(`robots.txt must reference ${expectedSitemap}.`);
+    }
+}
+
+function validateSitemap(sitemap) {
+    const expectedUrls = new Set(routes.map((route) => `${siteOrigin}${route}`));
+    const seenUrls = new Set();
+    const urlBlocks = [...sitemap.matchAll(/<url>([\s\S]*?)<\/url>/g)];
+
+    if (urlBlocks.length !== expectedUrls.size) {
+        errors.push(`sitemap.xml must contain ${expectedUrls.size} URL entries.`);
+    }
+
+    for (const [, block] of urlBlocks) {
+        const loc = block.match(/<loc>(.*?)<\/loc>/)?.[1]?.trim();
+        const lastmod = block.match(/<lastmod>(.*?)<\/lastmod>/)?.[1]?.trim();
+
+        if (!loc) {
+            errors.push("sitemap.xml has a URL entry without a loc value.");
+            continue;
+        }
+
+        seenUrls.add(loc);
+
+        if (!expectedUrls.has(loc)) {
+            errors.push(`sitemap.xml contains unexpected URL: ${loc}.`);
+        }
+
+        if (!lastmod || !/^\d{4}-\d{2}-\d{2}$/.test(lastmod)) {
+            errors.push(`sitemap.xml entry ${loc} must include an ISO date lastmod value.`);
+        }
+    }
+
+    for (const expectedUrl of expectedUrls) {
+        if (!seenUrls.has(expectedUrl)) {
+            errors.push(`sitemap.xml is missing ${expectedUrl}.`);
+        }
     }
 }
 
