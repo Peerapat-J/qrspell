@@ -18,8 +18,8 @@
         <link rel="icon" type="image/png" href="assets/qrspell-app-icon.png">
         <link rel="apple-touch-icon" href="assets/qrspell-app-icon.png">
         <link rel="preload" href="assets/qrspell-app-icon.png" as="image">
-        <link rel="stylesheet" href="styles.css?v=20260821a">
-        <script src="site.js?v=20260821a" defer></script>
+        <link rel="stylesheet" href="styles.css?v=20260821b">
+        <script src="site.js?v=20260821b" defer></script>
         <script type="application/ld+json">
             {
                 "@context": "https://schema.org",
@@ -94,34 +94,42 @@
 
                 <div class="app-preview-gallery" aria-label="QRSpell App Store screenshots" tabindex="0">
                     <figure class="app-preview-card">
-                        <img src="assets/app-preview/1.png" alt="QRSpell menu bar panel showing scan controls, recent results, and a QR code generator" width="2880" height="1800" fetchpriority="high">
+                        <button class="app-preview-trigger" type="button" aria-label="Open screenshot 1 of 7">
+                            <img src="assets/app-preview/1.png" alt="QRSpell menu bar panel showing scan controls, recent results, and a QR code generator" width="2880" height="1800" fetchpriority="high">
+                        </button>
                     </figure>
                     <figure class="app-preview-card">
-                        <img src="assets/app-preview/2.png" alt="QRSpell detecting three QR codes on a workshop document and presenting their results" width="2880" height="1800" loading="lazy" decoding="async">
+                        <button class="app-preview-trigger" type="button" aria-label="Open screenshot 2 of 7">
+                            <img src="assets/app-preview/2.png" alt="QRSpell detecting three QR codes on a workshop document and presenting their results" width="2880" height="1800" loading="lazy" decoding="async">
+                        </button>
                     </figure>
                     <figure class="app-preview-card">
-                        <img src="assets/app-preview/3.png" alt="QRSpell showing detected QR code results alongside a preview of the selected QR location" width="2880" height="1800" loading="lazy" decoding="async">
+                        <button class="app-preview-trigger" type="button" aria-label="Open screenshot 3 of 7">
+                            <img src="assets/app-preview/3.png" alt="QRSpell showing detected QR code results alongside a preview of the selected QR location" width="2880" height="1800" loading="lazy" decoding="async">
+                        </button>
                     </figure>
                     <figure class="app-preview-card">
-                        <img src="assets/app-preview/4.png" alt="QRSpell History window with recent QR code results and selection controls" width="2880" height="1800" loading="lazy" decoding="async">
+                        <button class="app-preview-trigger" type="button" aria-label="Open screenshot 4 of 7">
+                            <img src="assets/app-preview/4.png" alt="QRSpell History window with recent QR code results and selection controls" width="2880" height="1800" loading="lazy" decoding="async">
+                        </button>
                     </figure>
                     <figure class="app-preview-card">
-                        <img src="assets/app-preview/5.png" alt="QRSpell QR Code settings showing a customizable QR preview and export controls" width="2880" height="1800" loading="lazy" decoding="async">
+                        <button class="app-preview-trigger" type="button" aria-label="Open screenshot 5 of 7">
+                            <img src="assets/app-preview/5.png" alt="QRSpell QR Code settings showing a customizable QR preview and export controls" width="2880" height="1800" loading="lazy" decoding="async">
+                        </button>
                     </figure>
                     <figure class="app-preview-card">
-                        <img src="assets/app-preview/6.png" alt="QRSpell General settings for launch behavior, menu bar appearance, notifications, and sounds" width="2880" height="1800" loading="lazy" decoding="async">
+                        <button class="app-preview-trigger" type="button" aria-label="Open screenshot 6 of 7">
+                            <img src="assets/app-preview/6.png" alt="QRSpell General settings for launch behavior, menu bar appearance, notifications, and sounds" width="2880" height="1800" loading="lazy" decoding="async">
+                        </button>
                     </figure>
                     <figure class="app-preview-card">
-                        <img src="assets/app-preview/7.png" alt="QRSpell Scan settings for shortcuts, scan results, automatic copy, and location markers" width="2880" height="1800" loading="lazy" decoding="async">
+                        <button class="app-preview-trigger" type="button" aria-label="Open screenshot 7 of 7">
+                            <img src="assets/app-preview/7.png" alt="QRSpell Scan settings for shortcuts, scan results, automatic copy, and location markers" width="2880" height="1800" loading="lazy" decoding="async">
+                        </button>
                     </figure>
                 </div>
 
-                <ul class="app-preview-features">
-                    <li>Select an area or scan every visible display.</li>
-                    <li>Review, copy, or open each result in one place.</li>
-                    <li>Customize, verify, and save QR codes from the menu bar.</li>
-                    <li>Set shortcuts and revisit scans from local history.</li>
-                </ul>
             </section>
 
             <section class="privacy-note" aria-labelledby="privacy-title">
@@ -137,7 +145,7 @@
 
             <section class="closing" aria-labelledby="closing-title">
                 <img src="assets/qrspell-app-icon.png" alt="" width="84" height="84">
-                <p class="closing-note" id="closing-title">One-time purchase &middot; No extra in-app purchases &middot; No subscription &middot; No Ads</p>
+                <p class="closing-note" id="closing-title">QRSpell 2.0 is now free to download and use. More functional features available.</p>
                 <div class="store-group store-group-centered" aria-label="Mac App Store availability">
                     <a class="store-cta" href="https://apps.apple.com/app/id6771453521" target="_blank" rel="noopener noreferrer" aria-label="Download QRSpell on the Mac App Store">
                         <img class="app-store-badge" src="assets/app-store-badge.svg?v=20260531a" alt="Download on the Mac App Store" width="187" height="48">
@@ -158,6 +166,17 @@
                 <a href="helpcenter/">Help Center</a>
             </nav>
         </footer>
+
+        <dialog class="image-lightbox" aria-label="App preview image">
+            <div class="image-lightbox-stage">
+                <p class="image-lightbox-counter" aria-live="polite"></p>
+                <button class="image-lightbox-close" type="button" aria-label="Close image preview">&times;</button>
+                <button class="image-lightbox-control image-lightbox-previous" type="button" aria-label="Previous image">&larr;</button>
+                <img class="image-lightbox-image" alt="">
+                <button class="image-lightbox-control image-lightbox-next" type="button" aria-label="Next image">&rarr;</button>
+            </div>
+        </dialog>
+
         <!-- Cloudflare Web Analytics -->
         <script defer src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token":"e43189ed6f5c43d29472b9b18c73b226"}'></script>
         <!-- End Cloudflare Web Analytics -->
