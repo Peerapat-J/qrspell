@@ -15,6 +15,7 @@ const requiredFiles = [
     "styles.css",
     "site.js",
     "privacy/index.html",
+    "legal/index.html",
     "Acknowledgements/index.html",
     "changelog/index.html",
     "helpcenter/index.html",
