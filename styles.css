@@ -330,13 +330,14 @@ h3 {
 }
 
 .image-lightbox {
-    width: min(calc(100vw - 32px), 1800px);
-    height: min(calc(100vh - 32px), 1125px);
+    width: min(calc(100vw - 32px), calc(160vh - 52px), 1800px);
+    height: auto;
     max-width: none;
     max-height: none;
     margin: auto;
     padding: 0;
     overflow: hidden;
+    aspect-ratio: 16 / 10;
     border: 1px solid rgba(255, 255, 255, 0.22);
     border-radius: 12px;
     background: rgba(15, 23, 42, 0.98);
@@ -357,8 +358,8 @@ h3 {
 }
 
 .image-lightbox-image {
-    max-width: 100%;
-    max-height: 100%;
+    width: 100%;
+    height: 100%;
     object-fit: contain;
     user-select: none;
 }
@@ -822,8 +823,8 @@ h3 {
     }
 
     .image-lightbox {
-        width: calc(100vw - 20px);
-        height: calc(100vh - 20px);
+        width: min(calc(100vw - 20px), calc(160vh - 32px));
+        height: auto;
     }
 
     .image-lightbox-counter {
