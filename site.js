@@ -13,6 +13,8 @@
         let openingTrigger;
 
         const showPreview = (index) => {
+            const focusedElement = document.activeElement;
+
             activePreviewIndex = index;
 
             const sourceImage = previewTriggers[activePreviewIndex].querySelector("img");
@@ -21,6 +23,12 @@
             counter.textContent = `${activePreviewIndex + 1} of ${previewTriggers.length}`;
             previousButton.disabled = activePreviewIndex === 0;
             nextButton.disabled = activePreviewIndex === previewTriggers.length - 1;
+
+            if (focusedElement === previousButton && previousButton.disabled) {
+                nextButton.focus();
+            } else if (focusedElement === nextButton && nextButton.disabled) {
+                previousButton.focus();
+            }
         };
 
         const closeLightbox = () => {
