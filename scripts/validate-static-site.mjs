@@ -16,6 +16,7 @@ const requiredFiles = [
     "site.js",
     "privacy/index.html",
     "legal/index.html",
+    "Acknowledgements/index.html",
     "changelog/index.html",
     "helpcenter/index.html",
 ];
@@ -23,7 +24,7 @@ const requiredFiles = [
 const routes = [
     `${siteBasePath}/`,
     `${siteBasePath}/privacy/`,
-    `${siteBasePath}/legal/`,
+    `${siteBasePath}/Acknowledgements/`,
     `${siteBasePath}/changelog/`,
     `${siteBasePath}/helpcenter/`,
 ];

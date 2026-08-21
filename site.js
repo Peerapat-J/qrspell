@@ -1,37 +1,86 @@
 (function () {
-    const controlledVideos = document.querySelectorAll("[data-loop-delay], [data-playback-rate]");
+    const previewTriggers = [...document.querySelectorAll(".app-preview-trigger")];
+    const imageLightbox = document.querySelector(".image-lightbox");
 
-    controlledVideos.forEach((video) => {
-        const playbackRate = Number(video.dataset.playbackRate);
-        const loopDelay = Number(video.dataset.loopDelay);
+    if (imageLightbox && previewTriggers.length > 0) {
+        const lightboxImage = imageLightbox.querySelector(".image-lightbox-image");
+        const lightboxStage = imageLightbox.querySelector(".image-lightbox-stage");
+        const counter = imageLightbox.querySelector(".image-lightbox-counter");
+        const closeButton = imageLightbox.querySelector(".image-lightbox-close");
+        const previousButton = imageLightbox.querySelector(".image-lightbox-previous");
+        const nextButton = imageLightbox.querySelector(".image-lightbox-next");
+        let activePreviewIndex = 0;
+        let openingTrigger;
 
-        if (Number.isFinite(playbackRate) && playbackRate > 0) {
-            const applyPlaybackRate = () => {
-                video.defaultPlaybackRate = playbackRate;
-                video.playbackRate = playbackRate;
-            };
+        const showPreview = (index) => {
+            const focusedElement = document.activeElement;
 
-            applyPlaybackRate();
-            video.addEventListener("loadedmetadata", applyPlaybackRate);
-        }
+            activePreviewIndex = index;
 
-        if (Number.isFinite(loopDelay) && loopDelay > 0) {
-            let restartTimer;
-            video.loop = false;
+            const sourceImage = previewTriggers[activePreviewIndex].querySelector("img");
+            lightboxImage.src = sourceImage.dataset.fullSrc || sourceImage.currentSrc || sourceImage.src;
+            lightboxImage.alt = sourceImage.alt;
+            counter.textContent = `${activePreviewIndex + 1} of ${previewTriggers.length}`;
+            previousButton.disabled = activePreviewIndex === 0;
+            nextButton.disabled = activePreviewIndex === previewTriggers.length - 1;
 
-            video.addEventListener("ended", () => {
-                window.clearTimeout(restartTimer);
-                restartTimer = window.setTimeout(() => {
-                    video.currentTime = 0;
-                    const playPromise = video.play();
+            if (focusedElement === previousButton && previousButton.disabled) {
+                nextButton.focus();
+            } else if (focusedElement === nextButton && nextButton.disabled) {
+                previousButton.focus();
+            }
+        };
 
-                    if (playPromise && typeof playPromise.catch === "function") {
-                        playPromise.catch(() => {});
-                    }
-                }, loopDelay);
+        const closeLightbox = () => {
+            imageLightbox.close();
+        };
+
+        previewTriggers.forEach((trigger, index) => {
+            trigger.addEventListener("click", () => {
+                openingTrigger = trigger;
+                showPreview(index);
+                imageLightbox.showModal();
+                closeButton.focus();
             });
-        }
-    });
+        });
+
+        previousButton.addEventListener("click", () => {
+            showPreview(activePreviewIndex - 1);
+        });
+
+        nextButton.addEventListener("click", () => {
+            showPreview(activePreviewIndex + 1);
+        });
+
+        closeButton.addEventListener("click", closeLightbox);
+
+        lightboxStage.addEventListener("click", (event) => {
+            if (event.target === lightboxStage) {
+                closeLightbox();
+            }
+        });
+
+        imageLightbox.addEventListener("keydown", (event) => {
+            if (event.key === "Escape") {
+                event.preventDefault();
+                closeLightbox();
+            }
+
+            if (event.key === "ArrowLeft" && activePreviewIndex > 0) {
+                event.preventDefault();
+                showPreview(activePreviewIndex - 1);
+            }
+
+            if (event.key === "ArrowRight" && activePreviewIndex < previewTriggers.length - 1) {
+                event.preventDefault();
+                showPreview(activePreviewIndex + 1);
+            }
+        });
+
+        imageLightbox.addEventListener("close", () => {
+            openingTrigger?.focus();
+        });
+    }
 
     const copyButtons = document.querySelectorAll("[data-copy-value]");
 
