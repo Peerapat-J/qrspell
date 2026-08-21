@@ -322,35 +322,21 @@ h3 {
 
 .app-preview-features {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 18px 52px;
-    margin: 34px 0 0;
+    grid-template-columns: 1fr;
+    gap: 12px;
+    max-width: 660px;
+    margin: 34px auto 0;
     padding-left: 24px;
 }
 
 .app-preview-features li {
     padding-left: 4px;
     color: var(--muted);
+    font-size: 16px;
 }
 
 .app-preview-features li::marker {
     color: var(--accent);
-}
-
-.app-preview-features strong,
-.app-preview-features span {
-    display: block;
-}
-
-.app-preview-features strong {
-    color: var(--ink);
-    font-size: 17px;
-    line-height: 1.35;
-}
-
-.app-preview-features span {
-    margin-top: 3px;
-    font-size: 15px;
 }
 
 .privacy-note {
@@ -731,8 +717,7 @@ h3 {
     }
 
     .app-preview-features {
-        grid-template-columns: 1fr;
-        gap: 16px;
+        gap: 12px;
         margin-top: 28px;
     }
 
