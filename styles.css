@@ -272,7 +272,6 @@ h3 {
     height: auto;
 }
 
-.app-preview-heading p,
 .privacy-note p {
     font-size: 18px;
 }
@@ -285,10 +284,6 @@ h3 {
     max-width: 660px;
     margin-inline: auto;
     text-align: center;
-}
-
-.app-preview-heading p {
-    margin-top: 14px;
 }
 
 .app-preview-gallery {
@@ -705,10 +700,6 @@ h3 {
         padding-top: 68px;
     }
 
-    .app-preview-heading p {
-        font-size: 17px;
-    }
-
     .app-preview-gallery {
         grid-auto-columns: minmax(280px, 84vw);
         gap: 18px;
@@ -756,7 +747,6 @@ h3 {
     }
 
     .hero-copy,
-    .app-preview-heading p,
     .privacy-note p,
     .page-hero p {
         font-size: 16px;
