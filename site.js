@@ -18,7 +18,7 @@
             activePreviewIndex = index;
 
             const sourceImage = previewTriggers[activePreviewIndex].querySelector("img");
-            lightboxImage.src = sourceImage.currentSrc || sourceImage.src;
+            lightboxImage.src = sourceImage.dataset.fullSrc || sourceImage.currentSrc || sourceImage.src;
             lightboxImage.alt = sourceImage.alt;
             counter.textContent = `${activePreviewIndex + 1} of ${previewTriggers.length}`;
             previousButton.disabled = activePreviewIndex === 0;
