@@ -23,6 +23,7 @@ Before committing:
 git diff --check
 node --check site.js
 node --check scripts/validate-static-site.mjs
+node --test scripts/validate-static-site.test.mjs
 node scripts/validate-static-site.mjs
 ```
 

@@ -73,8 +73,20 @@ function validateSiteMetadata(htmlFile, html) {
     const canonicalFile = htmlFile === "legal/index.html" ? "Acknowledgements/index.html" : htmlFile;
     const expectedCanonical = `${siteOrigin}${siteBasePath}/${canonicalFile.replace(/index\.html$/u, "")}`;
     const head = html.match(/<head\b[^>]*>([\s\S]*?)<\/head>/iu)?.[1] ?? "";
-    const canonicalUrls = [...head.matchAll(/<link\b[^>]*\brel=["']canonical["'][^>]*\bhref=["']([^"']+)["']/giu)]
-        .map((match) => match[1]);
+    const canonicalUrls = [];
+
+    for (const [, linkAttributes] of head.matchAll(/<link\b((?:[^"'<>]|"[^"]*"|'[^']*')*)>/giu)) {
+        const attributes = new Map(
+            [...linkAttributes.matchAll(/([^\s"'<>/=]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+))/gu)]
+                .map(([, name, doubleQuoted, singleQuoted, unquoted]) => [
+                    name.toLowerCase(), doubleQuoted ?? singleQuoted ?? unquoted,
+                ]),
+        );
+
+        if (attributes.get("rel")?.toLowerCase().split(/\s+/u).includes("canonical")) {
+            canonicalUrls.push(attributes.get("href"));
+        }
+    }
 
     if (canonicalUrls.length !== 1 || canonicalUrls[0] !== expectedCanonical) {
         errors.push(`${htmlFile} must have one canonical URL matching ${expectedCanonical}.`);

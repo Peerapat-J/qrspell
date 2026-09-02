@@ -28,5 +28,8 @@ jobs:
       - name: Check JavaScript syntax
         run: node --check site.js
 
+      - name: Test static site validator
+        run: node --test scripts/validate-static-site.test.mjs
+
       - name: Validate pages and local assets
         run: node scripts/validate-static-site.mjs
