@@ -3,8 +3,8 @@ import { dirname, join, normalize, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = normalize(join(dirname(fileURLToPath(import.meta.url)), ".."));
-const siteOrigin = process.env.SITE_ORIGIN ?? "https://peerapat-j.github.io";
-const siteBasePath = normalizeSiteBasePath(process.env.SITE_BASE_PATH ?? "/qrspell");
+const siteOrigin = process.env.SITE_ORIGIN ?? "https://qrspell.app";
+const siteBasePath = normalizeSiteBasePath(process.env.SITE_BASE_PATH ?? "/");
 const cloudflareBeaconToken = "e43189ed6f5c43d29472b9b18c73b226";
 
 const requiredFiles = [
@@ -49,6 +49,7 @@ const htmlFiles = requiredFiles.filter((file) => file.endsWith(".html"));
 
 for (const htmlFile of htmlFiles) {
     const html = readText(htmlFile);
+    validateSiteMetadata(htmlFile, html);
     validateHtmlReferences(htmlFile, html);
     validateHtmlAnchors(htmlFile, html);
     validateCloudflareBeacon(htmlFile, html);
@@ -67,6 +68,22 @@ if (errors.length > 0) {
 }
 
 console.log("Static site validation passed.");
+
+function validateSiteMetadata(htmlFile, html) {
+    const canonicalFile = htmlFile === "legal/index.html" ? "Acknowledgements/index.html" : htmlFile;
+    const expectedCanonical = `${siteOrigin}${siteBasePath}/${canonicalFile.replace(/index\.html$/u, "")}`;
+    const head = html.match(/<head\b[^>]*>([\s\S]*?)<\/head>/iu)?.[1] ?? "";
+    const canonicalUrls = [...head.matchAll(/<link\b[^>]*\brel=["']canonical["'][^>]*\bhref=["']([^"']+)["']/giu)]
+        .map((match) => match[1]);
+
+    if (canonicalUrls.length !== 1 || canonicalUrls[0] !== expectedCanonical) {
+        errors.push(`${htmlFile} must have one canonical URL matching ${expectedCanonical}.`);
+    }
+
+    if (head.includes("https://peerapat-j.github.io/qrspell")) {
+        errors.push(`${htmlFile} metadata still references the legacy GitHub Pages URL.`);
+    }
+}
 
 function validateHtmlReferences(htmlFile, html) {
     for (const match of html.matchAll(/\b(?:href|src|poster)\s*=\s*(["'])(.*?)\1/gi)) {
