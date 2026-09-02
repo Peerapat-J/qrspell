@@ -4,17 +4,17 @@
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <title>QRSpell - On-Screen QR Code Scanner for macOS</title>
-        <meta name="description" content="QRSpell is a local macOS menu bar app for scanning and creating QR codes from selected areas or every visible display.">
-        <link rel="canonical" href="https://peerapat-j.github.io/qrspell/">
+        <meta name="description" content="QRSpell is a macOS menu bar app for scanning on-screen QR codes, creating QR codes, and keeping scan history.">
+        <link rel="canonical" href="https://qrspell.app/">
         <meta property="og:type" content="website">
-        <meta property="og:url" content="https://peerapat-j.github.io/qrspell/">
+        <meta property="og:url" content="https://qrspell.app/">
         <meta property="og:title" content="QRSpell - On-Screen QR Code Scanner for macOS">
-        <meta property="og:description" content="Scan and create QR codes from your Mac screen with a local menu bar app for selected areas and every visible display.">
-        <meta property="og:image" content="https://peerapat-j.github.io/qrspell/assets/qrspell-app-icon.png">
+        <meta property="og:description" content="QRSpell is a macOS menu bar app for scanning on-screen QR codes, creating QR codes, and keeping scan history.">
+        <meta property="og:image" content="https://qrspell.app/assets/qrspell-app-icon.png">
         <meta name="twitter:card" content="summary">
         <meta name="twitter:title" content="QRSpell - On-Screen QR Code Scanner for macOS">
-        <meta name="twitter:description" content="Scan and create QR codes from your Mac screen with a local menu bar app for selected areas and every visible display.">
-        <meta name="twitter:image" content="https://peerapat-j.github.io/qrspell/assets/qrspell-app-icon.png">
+        <meta name="twitter:description" content="QRSpell is a macOS menu bar app for scanning on-screen QR codes, creating QR codes, and keeping scan history.">
+        <meta name="twitter:image" content="https://qrspell.app/assets/qrspell-app-icon.png">
         <link rel="icon" type="image/png" href="assets/qrspell-app-icon.png">
         <link rel="apple-touch-icon" href="assets/qrspell-app-icon.png">
         <link rel="preload" href="assets/qrspell-app-icon.png" as="image">
@@ -26,24 +26,32 @@
                 "@graph": [
                     {
                         "@type": "WebSite",
-                        "@id": "https://peerapat-j.github.io/qrspell/#website",
+                        "@id": "https://qrspell.app/#website",
                         "name": "QRSpell",
-                        "url": "https://peerapat-j.github.io/qrspell/",
-                        "description": "QRSpell is a macOS menu bar QR code scanner for reading QR codes from your Mac screen.",
+                        "url": "https://qrspell.app/",
+                        "description": "QRSpell is a macOS menu bar app for scanning on-screen QR codes, creating QR codes, and keeping scan history.",
                         "inLanguage": "en"
                     },
                     {
                         "@type": "SoftwareApplication",
-                        "@id": "https://peerapat-j.github.io/qrspell/#software",
+                        "@id": "https://qrspell.app/#software",
                         "name": "QRSpell",
                         "applicationCategory": "UtilitiesApplication",
-                        "applicationSubCategory": "QR code scanner",
-                        "operatingSystem": "macOS",
-                        "url": "https://peerapat-j.github.io/qrspell/",
+                        "applicationSubCategory": "QR code scanner and generator",
+                        "operatingSystem": "macOS 15 or later",
+                        "processorRequirements": "Apple silicon (arm64)",
+                        "url": "https://qrspell.app/",
                         "downloadUrl": "https://apps.apple.com/app/id6771453521",
-                        "image": "https://peerapat-j.github.io/qrspell/assets/qrspell-app-icon.png",
-                        "description": "QRSpell is a local macOS menu bar app for scanning and creating QR codes from selected areas or every visible display.",
+                        "image": "https://qrspell.app/assets/qrspell-app-icon.png",
+                        "description": "QRSpell is a macOS menu bar app for scanning on-screen QR codes, creating QR codes, and keeping scan history.",
                         "softwareVersion": "2.0",
+                        "isAccessibleForFree": true,
+                        "offers": {
+                            "@type": "Offer",
+                            "url": "https://apps.apple.com/app/id6771453521",
+                            "price": 0,
+                            "priceCurrency": "USD"
+                        },
                         "sameAs": [
                             "https://github.com/Peerapat-J/qrspell",
                             "https://apps.apple.com/app/id6771453521"
@@ -136,8 +144,8 @@
                 <div>
                     <h2 id="privacy-title">Offline and local by design.</h2>
                     <p>
-                        Offline QR detection runs on your Mac. The QRSpell app does not include analytics, advertising,
-                        tracking, telemetry, or server uploads for scan content.
+                        QR scanning, QR creation, and History work locally on your Mac. The app has no ads,
+                        analytics, or tracking.
                     </p>
                 </div>
                 <a class="text-link" href="privacy/">Read the Privacy Policy</a>
