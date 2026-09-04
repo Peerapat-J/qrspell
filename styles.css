@@ -71,8 +71,8 @@ textarea {
 .site-header,
 .hero,
 .app-preview,
+.features,
 .privacy-note,
-.closing,
 .footer {
     width: min(1040px, calc(100% - 48px));
     margin-inline: auto;
@@ -102,8 +102,7 @@ textarea {
 }
 
 .brand img,
-.hero-icon,
-.closing > img {
+.hero-icon {
     border-radius: 22%;
     filter: drop-shadow(0 14px 28px rgba(15, 23, 42, 0.14));
 }
@@ -191,7 +190,7 @@ textarea {
     display: flex;
     align-items: center;
     flex-direction: column;
-    padding: 64px 0 52px;
+    padding: 64px 0 40px;
     text-align: center;
 }
 
@@ -276,22 +275,11 @@ h3 {
     font-size: 18px;
 }
 
-.app-preview {
-    padding: 52px 0 0;
-}
-
-.app-preview-heading {
-    max-width: 660px;
-    margin-inline: auto;
-    text-align: center;
-}
-
 .app-preview-gallery {
     display: grid;
     grid-auto-columns: minmax(660px, 82%);
     grid-auto-flow: column;
     gap: 24px;
-    margin-top: 38px;
     padding: 0 0 18px;
     overflow-x: auto;
     overscroll-behavior-inline: contain;
@@ -430,12 +418,20 @@ h3 {
     opacity: 0.32;
 }
 
+.features {
+    max-width: 660px;
+    padding-top: 40px;
+}
+
+.features h2 {
+    font-size: 28px;
+}
+
 .app-preview-features {
     display: grid;
     grid-template-columns: 1fr;
     gap: 12px;
-    max-width: 660px;
-    margin: 34px auto 0;
+    margin: 20px 0 0;
     padding-left: 24px;
 }
 
@@ -477,32 +473,12 @@ h3 {
     font-weight: 750;
 }
 
-.closing {
-    display: grid;
-    justify-items: center;
-    gap: 18px;
-    padding: 104px 0 88px;
-    text-align: center;
-}
-
-.closing-note {
-    max-width: 980px;
-    color: var(--ink);
-    font-size: 18px;
-    font-weight: 750;
-    line-height: 1.45;
-    white-space: normal;
-}
-
-.store-group-centered {
-    margin-top: 8px;
-}
-
 .footer {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 24px;
+    margin-top: 88px;
     padding: 34px 0 48px;
     border-top: 1px solid var(--line);
 }
@@ -762,8 +738,8 @@ h3 {
     .site-header,
     .hero,
     .app-preview,
+    .features,
     .privacy-note,
-    .closing,
     .footer,
     .page-shell {
         width: calc(100% - 32px);
@@ -778,7 +754,7 @@ h3 {
     }
 
     .hero {
-        padding: 54px 0 64px;
+        padding: 54px 0 32px;
     }
 
     h1 {
@@ -807,18 +783,9 @@ h3 {
         gap: 10px;
     }
 
-    .store-group-centered {
-        align-items: center;
-    }
-
-    .app-preview {
-        padding-top: 68px;
-    }
-
     .app-preview-gallery {
         grid-auto-columns: minmax(280px, 84vw);
         gap: 18px;
-        margin-top: 30px;
         padding-bottom: 14px;
     }
 
@@ -858,12 +825,8 @@ h3 {
         padding: 26px 22px;
     }
 
-    .closing {
-        padding: 76px 0 68px;
-    }
-
-    .closing-note {
-        white-space: normal;
+    .footer {
+        margin-top: 68px;
     }
 
 }
@@ -872,8 +835,8 @@ h3 {
     .site-header,
     .hero,
     .app-preview,
+    .features,
     .privacy-note,
-    .closing,
     .footer,
     .page-shell {
         width: min(358px, calc(100% - 32px));

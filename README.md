@@ -6,6 +6,15 @@ QRSpell is a macOS menu bar app for scanning on-screen QR codes, creating QR cod
 - Mac App Store: https://apps.apple.com/app/id6771453521
 - Help Center: https://qrspell.app/helpcenter/
 
+## Release screenshots
+
+- [2.1 — files, display order, source folder, and checksums](assets/app-preview/2.1/README.md)
+- [Earlier screenshot export notes](assets/app-preview/MANIFEST.md)
+
+For each release, keep the selected originals in a versioned folder and record their source and order. Generate web-sized copies separately; do not overwrite previous release images. Keep the public Changelog wording aligned with App Store Connect.
+
+Prepare release website changes on a branch. Merge to `main` only after Apple approval, coordinated with the app's availability: merging deploys the website.
+
 ## Website information update checklist
 
 When app features, pricing, system requirements, privacy or network behavior, or the released version change, review the visible pages and their machine-readable metadata together. Updating only the text shown on the page is not complete.
@@ -23,10 +32,12 @@ Before committing:
 git diff --check
 node --check site.js
 node --check scripts/validate-static-site.mjs
-node --test scripts/validate-static-site.test.mjs
+node --test scripts/*.test.mjs
 node scripts/validate-static-site.mjs
 ```
 
-The static validator checks routes, local assets, canonical URLs, the legacy domain, and the sitemap. It does not verify app facts or fully validate JSON-LD. Also parse and review the JSON-LD, compare it with the visible version, price, and system requirements, and check affected pages in the local preview. When only metadata changes, confirm that the page body and Changelog entries remain unchanged.
+The static validator checks routes, local assets, canonical URLs, the legacy domain, and the sitemap. Content tests check metadata consistency, version/release links, screenshot order and source checksums, and the approved 2.1 release notes. They do not verify live app behavior or fully validate JSON-LD. Still review app facts and affected pages in the local preview. When only metadata changes, confirm that the page body and Changelog entries remain unchanged.
 
 After deployment, check the metadata served by `https://qrspell.app/`, not just the local preview. Use Google's [Rich Results Test](https://search.google.com/test/rich-results) if checking rich-result eligibility; passing the local checks is not proof of indexing or search appearance.
+
+For search visibility, check URL Inspection and the sitemap in Google Search Console after deployment. Use search impressions, clicks, and App Store traffic to decide which real usage questions need better help content. There is no guarantee of indexing or AI recommendations, and no need to add hidden keywords, invented ratings, or special AI files for Google Search; see [Google's guidance](https://developers.google.com/search/docs/fundamentals/ai-optimization-guide).
