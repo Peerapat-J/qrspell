@@ -1,18 +1,23 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
     <url>
-        <loc>https://peerapat-j.github.io/qrspell/</loc>
+        <loc>https://qrspell.app/</loc>
+        <lastmod>2026-09-03</lastmod>
     </url>
     <url>
-        <loc>https://peerapat-j.github.io/qrspell/changelog/</loc>
+        <loc>https://qrspell.app/changelog/</loc>
+        <lastmod>2026-09-03</lastmod>
     </url>
     <url>
-        <loc>https://peerapat-j.github.io/qrspell/privacy/</loc>
+        <loc>https://qrspell.app/privacy/</loc>
+        <lastmod>2026-09-03</lastmod>
     </url>
     <url>
-        <loc>https://peerapat-j.github.io/qrspell/legal/</loc>
+        <loc>https://qrspell.app/Acknowledgements/</loc>
+        <lastmod>2026-08-21</lastmod>
     </url>
     <url>
-        <loc>https://peerapat-j.github.io/qrspell/helpcenter/</loc>
+        <loc>https://qrspell.app/helpcenter/</loc>
+        <lastmod>2026-09-03</lastmod>
     </url>
 </urlset>
