@@ -223,6 +223,42 @@ test("QR generator controls work together in a real browser", { timeout: 30_000 
                 downloadDisabled: true,
             });
         });
+
+        await context.test("valid local center images still render and verify", async () => {
+            await navigate(client, `${site.origin}/qr-code-generator/?test=valid-image`);
+            await client.evaluate(`(() => {
+                const content = document.querySelector("#qr-content");
+                content.value = "valid center image test";
+                content.dispatchEvent(new Event("input", { bubbles: true }));
+                const reliability = document.querySelector("#reliability");
+                reliability.value = "H";
+                reliability.dispatchEvent(new Event("change", { bubbles: true }));
+                const centerType = document.querySelector("#center-type");
+                centerType.value = "image";
+                centerType.dispatchEvent(new Event("change", { bubbles: true }));
+                const bytes = Uint8Array.from(
+                    atob("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="),
+                    (character) => character.charCodeAt(0),
+                );
+                const transfer = new DataTransfer();
+                transfer.items.add(new File([bytes], "logo.png", { type: "image/png" }));
+                const input = document.querySelector("#center-image");
+                input.files = transfer.files;
+                input.dispatchEvent(new Event("change", { bubbles: true }));
+            })()`);
+            await waitFor(client, `document.querySelector("#verification-status").dataset.state === "verified"`);
+            assert.deepEqual(await client.evaluate(`(() => ({
+                errorHidden: document.querySelector("#center-image-error").hidden,
+                imageName: document.querySelector("#center-image-name").textContent,
+                copyDisabled: document.querySelector("#copy-qr").disabled,
+                downloadDisabled: document.querySelector("#download-qr").disabled,
+            }))()`), {
+                errorHidden: true,
+                imageName: "logo.png",
+                copyDisabled: false,
+                downloadDisabled: false,
+            });
+        });
     } finally {
         client.close();
         browser.process.kill("SIGTERM");
