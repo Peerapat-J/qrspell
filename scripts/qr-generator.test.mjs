@@ -11,6 +11,8 @@ import {
     normalizeHexColor,
     quietZoneMargin,
     readabilityWarnings,
+    splitGraphemes,
+    truncateGraphemes,
 } from "../qr-code-generator/generator-core.mjs";
 
 test("normalizes valid colors and falls back for invalid values", () => {
@@ -100,6 +102,17 @@ test("keeps a single emoji large and makes longer text badges compact", () => {
     const text = decodeURIComponent(createTextBadgeDataUrl("QRSpell", "#000000", "#FFFFFF").split(",", 2)[1]);
     assert.match(text, /height="168"/u);
     assert.match(text, /font-size="76"/u);
+});
+
+test("keeps complete grapheme clusters in center text", () => {
+    const family = "👨‍👩‍👧‍👦";
+    assert.deepEqual(splitGraphemes(family), [family]);
+    assert.equal(truncateGraphemes(`${family}123456`, 6), `${family}12345`);
+
+    const badge = decodeURIComponent(createTextBadgeDataUrl(family, "#000000", "#FFFFFF").split(",", 2)[1]);
+    assert.match(badge, new RegExp(family, "u"));
+    assert.match(badge, /font-size="224"/u);
+    assert.doesNotMatch(badge, /\u200D<\/text>/u);
 });
 
 test("calculates a four-module quiet zone for each export size", () => {

@@ -6,6 +6,7 @@ import {
     hsvToHex,
     quietZoneMargin,
     readabilityWarnings,
+    truncateGraphemes,
 } from "./generator-core.mjs";
 
 const elements = {
@@ -79,6 +80,10 @@ function bindControls() {
     elements.form.addEventListener("input", (event) => {
         if (event.target === elements.centerImage) {
             return;
+        }
+
+        if (event.target === elements.centerText) {
+            elements.centerText.value = truncateGraphemes(elements.centerText.value, 6);
         }
 
         updateColorValues();

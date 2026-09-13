@@ -64,6 +64,8 @@ test("QR generator page preserves its product and privacy contract", () => {
     assert.match(generator, /id="reliability"/u);
     assert.match(generator, /<option value="M" selected>Standard<\/option>/u);
     assert.match(generator, /id="center-type"/u);
+    assert.match(generator, /Up to 6 text characters or emoji\./u);
+    assert.doesNotMatch(generator, /id="center-text"[^>]*maxlength=/u);
     assert.match(generator, /accept="image\/png,image\/jpeg,image\/webp"/u);
     assert.match(generator, /PNG, JPEG, or WebP up to 5 MB\./u);
     assert.match(generator, /id="center-image-error" role="alert"/u);

@@ -85,6 +85,20 @@ export function hasExpectedImageSignature(mimeType, bytes) {
     return false;
 }
 
+export function splitGraphemes(value) {
+    const content = String(value ?? "");
+    if (typeof Intl.Segmenter === "function") {
+        const segmenter = new Intl.Segmenter(undefined, { granularity: "grapheme" });
+        return [...segmenter.segment(content)].map(({ segment }) => segment);
+    }
+    return [...content];
+}
+
+export function truncateGraphemes(value, maximum = 6) {
+    const limit = Math.max(0, Math.floor(Number(maximum) || 0));
+    return splitGraphemes(value).slice(0, limit).join("");
+}
+
 export function readabilityWarnings({
     foreground,
     background,
@@ -170,12 +184,12 @@ export function quietZoneMargin(exportSize, moduleCount) {
 }
 
 export function createTextBadgeDataUrl(text, foreground, background) {
-    const content = [...String(text ?? "").trim()].slice(0, 6).join("");
+    const content = truncateGraphemes(String(text ?? "").trim(), 6);
     if (!content) {
         return "";
     }
 
-    const symbolCount = [...content].length;
+    const symbolCount = splitGraphemes(content).length;
     const escapedText = escapeXml(content);
     const fill = normalizeHexColor(foreground);
     const surface = normalizeHexColor(background, "#FFFFFF");
