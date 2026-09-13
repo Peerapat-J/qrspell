@@ -64,6 +64,27 @@ export function hsvToHex(hue, saturation, brightness) {
     )).join("").toUpperCase()}`;
 }
 
+export function hasExpectedImageSignature(mimeType, bytes) {
+    const header = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes ?? []);
+    if (mimeType === "image/png") {
+        return header.length >= 8
+            && [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]
+                .every((value, index) => header[index] === value);
+    }
+    if (mimeType === "image/jpeg") {
+        return header.length >= 3
+            && header[0] === 0xFF
+            && header[1] === 0xD8
+            && header[2] === 0xFF;
+    }
+    if (mimeType === "image/webp") {
+        return header.length >= 12
+            && String.fromCharCode(...header.slice(0, 4)) === "RIFF"
+            && String.fromCharCode(...header.slice(8, 12)) === "WEBP";
+    }
+    return false;
+}
+
 export function readabilityWarnings({
     foreground,
     background,

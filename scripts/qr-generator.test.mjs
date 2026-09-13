@@ -5,6 +5,7 @@ import {
     buildQrOptions,
     contrastRatio,
     createTextBadgeDataUrl,
+    hasExpectedImageSignature,
     hexToHsv,
     hsvToHex,
     normalizeHexColor,
@@ -27,6 +28,17 @@ test("converts colors between hex and HSV", () => {
     assert.deepEqual(hexToHsv("#FF0000"), { hue: 0, saturation: 100, brightness: 100 });
     assert.equal(hsvToHex(0, 100, 100), "#FF0000");
     assert.equal(hsvToHex(210, 79.06976744186046, 33.72549019607843), "#123456");
+});
+
+test("accepts only image bytes that match their declared raster format", () => {
+    const png = Uint8Array.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]);
+    const jpeg = Uint8Array.from([0xFF, 0xD8, 0xFF, 0xE0]);
+    const webp = Uint8Array.from([0x52, 0x49, 0x46, 0x46, 0, 0, 0, 0, 0x57, 0x45, 0x42, 0x50]);
+    assert.equal(hasExpectedImageSignature("image/png", png), true);
+    assert.equal(hasExpectedImageSignature("image/jpeg", jpeg), true);
+    assert.equal(hasExpectedImageSignature("image/webp", webp), true);
+    assert.equal(hasExpectedImageSignature("image/png", jpeg), false);
+    assert.equal(hasExpectedImageSignature("image/svg+xml", new Uint8Array()), false);
 });
 
 test("reports contrast, inversion, density, and center-content risks", () => {

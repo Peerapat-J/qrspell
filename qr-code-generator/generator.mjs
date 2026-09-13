@@ -1,6 +1,7 @@
 import {
     buildQrOptions,
     createTextBadgeDataUrl,
+    hasExpectedImageSignature,
     hexToHsv,
     hsvToHex,
     quietZoneMargin,
@@ -57,6 +58,7 @@ let centerImageLoadID = 0;
 let renderTimer;
 let renderID = 0;
 const maximumCenterImageBytes = 5 * 1024 * 1024;
+const acceptedCenterImageTypes = new Set(["image/png", "image/jpeg", "image/webp"]);
 const customSelectInstances = [];
 const customColorInstances = [];
 
@@ -736,8 +738,8 @@ async function loadCenterImage() {
         return;
     }
 
-    if (!file.type.startsWith("image/")) {
-        rejectCenterImage("Choose an image file for the center logo.");
+    if (!acceptedCenterImageTypes.has(file.type)) {
+        rejectCenterImage("Choose a PNG, JPEG, or WebP image.");
         return;
     }
 
@@ -749,6 +751,14 @@ async function loadCenterImage() {
     elements.centerImageName.textContent = file.name;
     setStatus("checking", "Checking center image…");
     try {
+        const header = new Uint8Array(await file.slice(0, 12).arrayBuffer());
+        if (!hasExpectedImageSignature(file.type, header)) {
+            throw new Error("The file contents do not match its image format.");
+        }
+        await decodeCenterImageFile(file);
+        if (activeLoadID !== centerImageLoadID) {
+            return;
+        }
         const dataUrl = await readFileAsDataUrl(file);
         if (activeLoadID !== centerImageLoadID) {
             return;
@@ -759,8 +769,46 @@ async function loadCenterImage() {
         if (activeLoadID !== centerImageLoadID) {
             return;
         }
-        rejectCenterImage("The selected image could not be read.");
+        rejectCenterImage("The selected image could not be decoded. Choose a valid PNG, JPEG, or WebP file.");
     }
+}
+
+async function decodeCenterImageFile(file) {
+    if ("createImageBitmap" in window) {
+        const bitmap = await window.createImageBitmap(file);
+        if (bitmap.width < 1 || bitmap.height < 1) {
+            bitmap.close();
+            throw new Error("The selected image has no visible pixels.");
+        }
+        bitmap.close();
+        return;
+    }
+
+    await loadCenterImageFile(file);
+}
+
+function loadCenterImageFile(file) {
+    return new Promise((resolve, reject) => {
+        const url = URL.createObjectURL(file);
+        const image = new Image();
+        const timeout = window.setTimeout(() => finish(() => reject(new Error("Image decoding timed out."))), 5000);
+        const finish = (completion) => {
+            window.clearTimeout(timeout);
+            URL.revokeObjectURL(url);
+            image.onload = null;
+            image.onerror = null;
+            completion();
+        };
+        image.onload = () => finish(() => {
+            if (image.naturalWidth < 1 || image.naturalHeight < 1) {
+                reject(new Error("The selected image has no visible pixels."));
+            } else {
+                resolve();
+            }
+        });
+        image.onerror = () => finish(() => reject(new Error("Image decoding failed.")));
+        image.src = url;
+    });
 }
 
 function rejectCenterImage(message) {
