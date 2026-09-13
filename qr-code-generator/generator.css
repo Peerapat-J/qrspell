@@ -34,14 +34,6 @@
     padding: 58px 0 38px;
 }
 
-.generator-eyebrow {
-    color: #475569;
-    font-size: 13px;
-    font-weight: 760;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-}
-
 .generator-hero h1 {
     max-width: 720px;
     font-size: clamp(42px, 6vw, 72px);

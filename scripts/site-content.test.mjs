@@ -60,9 +60,11 @@ test("QR generator page preserves its product and privacy contract", () => {
     assert.match(generator, /id="background-color"/u);
     assert.match(generator, /id="export-size"/u);
     assert.match(generator, /id="reliability"/u);
+    assert.match(generator, /<option value="M" selected>Standard<\/option>/u);
     assert.match(generator, /id="center-type"/u);
     assert.match(generator, /id="copy-qr"/u);
     assert.match(generator, /id="download-qr"/u);
+    assert.doesNotMatch(generator, /Free browser tool/u);
     assert.doesNotMatch(generator, /FAQ|Clean URL|URL shortener/iu);
 });
 

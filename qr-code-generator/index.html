@@ -58,7 +58,6 @@
 
         <main class="generator-shell">
             <section class="generator-hero" aria-labelledby="generator-title">
-                <p class="generator-eyebrow">Free browser tool</p>
                 <h1 id="generator-title">Create a QR code that feels like yours.</h1>
                 <p class="generator-hero-copy">Add your content, customize the design, and download a verified PNG. No sign-up required.</p>
             </section>
@@ -124,8 +123,8 @@
                             <div class="generator-field">
                                 <label for="reliability">Reliability</label>
                                 <select id="reliability" name="reliability">
-                                    <option value="M">Standard</option>
-                                    <option value="Q" selected>High</option>
+                                    <option value="M" selected>Standard</option>
+                                    <option value="Q">High</option>
                                     <option value="H">Maximum</option>
                                 </select>
                             </div>
@@ -177,7 +176,18 @@
                     <div class="qr-preview-stage" id="qr-preview" aria-live="polite">
                         <div class="qr-preview-empty" id="qr-preview-empty">
                             <svg viewBox="0 0 24 24" aria-hidden="true">
-                                <path fill="currentColor" d="M3 3h7v7H3V3Zm2 2v3h3V5H5Zm9-2h7v7h-7V3Zm2 2v3h3V5h-3ZM3 14h7v7H3v-7Zm2 2v3h3v-3H5Zm9-2h3v3h-3v-3Zm4 0h3v7h-3v-3h-3v-3h3v-1Zm-4 5h3v2h-3v-2Z"/>
+                                <g fill="none" stroke="currentColor" stroke-width="2">
+                                    <rect x="2" y="2" width="8" height="8" rx="0.75"/>
+                                    <rect x="14" y="2" width="8" height="8" rx="0.75"/>
+                                    <rect x="2" y="14" width="8" height="8" rx="0.75"/>
+                                    <rect x="14" y="14" width="8" height="8" rx="0.75"/>
+                                </g>
+                                <g fill="currentColor">
+                                    <rect x="5" y="5" width="2" height="2" rx="0.25"/>
+                                    <rect x="17" y="5" width="2" height="2" rx="0.25"/>
+                                    <rect x="5" y="17" width="2" height="2" rx="0.25"/>
+                                    <rect x="17" y="17" width="2" height="2" rx="0.25"/>
+                                </g>
                             </svg>
                             <p>Your QR preview will appear here.</p>
                         </div>

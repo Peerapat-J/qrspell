@@ -41,7 +41,7 @@ const defaultState = {
     foreground: "#000000",
     background: "#FFFFFF",
     exportSize: "512",
-    reliability: "Q",
+    reliability: "M",
     centerType: "none",
     centerSize: "0.24",
 };

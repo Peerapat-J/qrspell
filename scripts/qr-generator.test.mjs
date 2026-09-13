@@ -59,7 +59,7 @@ test("builds supported QR options and safe defaults", () => {
 
     const defaults = buildQrOptions({ content: "test" });
     assert.equal(defaults.width, 512);
-    assert.equal(defaults.qrOptions.errorCorrectionLevel, "Q");
+    assert.equal(defaults.qrOptions.errorCorrectionLevel, "M");
     assert.equal(defaults.dotsOptions.type, "square");
 });
 
@@ -68,7 +68,18 @@ test("creates an encoded local SVG for center text", () => {
     assert.ok(dataUrl.startsWith("data:image/svg+xml;charset=utf-8,"));
     const decoded = decodeURIComponent(dataUrl.split(",", 2)[1]);
     assert.match(decoded, /&lt;&amp;/u);
+    assert.match(decoded, /font-size="176"/u);
     assert.doesNotMatch(decoded, /<text[^>]*><&<\/text>/u);
+});
+
+test("keeps a single emoji large and makes longer text badges compact", () => {
+    const emoji = decodeURIComponent(createTextBadgeDataUrl("🐻", "#000000", "#FFFFFF").split(",", 2)[1]);
+    assert.match(emoji, /viewBox="0 0 256 256"/u);
+    assert.match(emoji, /font-size="224"/u);
+
+    const text = decodeURIComponent(createTextBadgeDataUrl("QRSpell", "#000000", "#FFFFFF").split(",", 2)[1]);
+    assert.match(text, /height="168"/u);
+    assert.match(text, /font-size="76"/u);
 });
 
 test("calculates a four-module quiet zone for each export size", () => {

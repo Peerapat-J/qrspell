@@ -51,7 +51,7 @@ export function readabilityWarnings({
 
 export function buildQrOptions(settings) {
     const exportSize = exportSizes.has(Number(settings.exportSize)) ? Number(settings.exportSize) : 512;
-    const reliability = reliabilityLevels.has(settings.reliability) ? settings.reliability : "Q";
+    const reliability = reliabilityLevels.has(settings.reliability) ? settings.reliability : "M";
     const moduleShape = moduleShapes.has(settings.moduleShape) ? settings.moduleShape : "square";
     const finderShape = finderShapes.has(settings.finderShape) ? settings.finderShape : "square";
     const foreground = normalizeHexColor(settings.foreground);
@@ -101,19 +101,26 @@ export function quietZoneMargin(exportSize, moduleCount) {
 }
 
 export function createTextBadgeDataUrl(text, foreground, background) {
-    const content = String(text ?? "").trim().slice(0, 6);
+    const content = [...String(text ?? "").trim()].slice(0, 6).join("");
     if (!content) {
         return "";
     }
 
+    const symbolCount = [...content].length;
     const escapedText = escapeXml(content);
     const fill = normalizeHexColor(foreground);
     const surface = normalizeHexColor(background, "#FFFFFF");
-    const fontSize = content.length <= 2 ? 118 : content.length <= 4 ? 82 : 62;
+    const fontSize = symbolCount === 1 ? 224 : symbolCount === 2 ? 176 : symbolCount <= 4 ? 96 : 76;
+    const height = symbolCount <= 2 ? 256 : 168;
+    const width = symbolCount <= 2
+        ? 256
+        : Math.round(clamp((fontSize * symbolCount * 0.72) + 48, 256, 520));
+    const cornerRadius = symbolCount <= 2 ? 48 : 34;
+    const textY = Math.round((height / 2) + (fontSize * 0.035));
     const svg = [
-        '<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">',
-        `<rect x="8" y="8" width="240" height="240" rx="58" fill="${surface}"/>`,
-        `<text x="128" y="137" text-anchor="middle" dominant-baseline="middle" `,
+        `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">`,
+        `<rect x="8" y="8" width="${width - 16}" height="${height - 16}" rx="${cornerRadius}" fill="${surface}"/>`,
+        `<text x="${width / 2}" y="${textY}" text-anchor="middle" dominant-baseline="middle" `,
         `font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif" font-size="${fontSize}" `,
         `font-weight="700" fill="${fill}">${escapedText}</text>`,
         "</svg>",
