@@ -9,6 +9,8 @@ const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const read = (file) => readFileSync(join(root, file), "utf8");
 const homepage = read("index.html");
 const generator = read("qr-code-generator/index.html");
+const generatorRuntime = read("qr-code-generator/generator.mjs");
+const generatorStyles = read("qr-code-generator/generator.css");
 const changelog = read("changelog/index.html");
 const graph = JSON.parse(homepage.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/u)[1])["@graph"];
 const software = graph.find((item) => item["@type"] === "SoftwareApplication");
@@ -81,11 +83,21 @@ test("QR generator runtime dependencies are bundled locally", () => {
 
 test("QR content and center images have no network upload path", () => {
     const runtime = [
-        read("qr-code-generator/generator.mjs"),
+        generatorRuntime,
         read("qr-code-generator/generator-core.mjs"),
     ].join("\n");
     assert.doesNotMatch(runtime, /\bfetch\s*\(|XMLHttpRequest|WebSocket|sendBeacon/gu);
     assert.doesNotMatch(generator, /<form\b[^>]*\baction=/gu);
+});
+
+test("generator select menus use the styled accessible enhancement", () => {
+    assert.match(generatorRuntime, /function enhanceSelects\(\)/u);
+    assert.match(generatorRuntime, /aria-haspopup/u);
+    assert.match(generatorRuntime, /role", "listbox/u);
+    assert.match(generatorRuntime, /ArrowDown/u);
+    assert.match(generatorRuntime, /Escape/u);
+    assert.match(generatorStyles, /\.generator-select-menu/u);
+    assert.match(generatorStyles, /border-radius: 14px/u);
 });
 
 test("site navigation and sitemap expose the QR generator", () => {

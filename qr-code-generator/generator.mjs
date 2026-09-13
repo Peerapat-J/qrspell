@@ -51,12 +51,14 @@ let currentContent = "";
 let centerImageDataUrl = "";
 let renderTimer;
 let renderID = 0;
+const customSelectInstances = [];
 
 if (!window.QRCodeStyling || !window.jsQR) {
     setStatus("error", "The QR generator could not load. Refresh the page and try again.");
     disableExport();
 } else {
     bindControls();
+    enhanceSelects();
     updateCenterFields();
     updateColorValues();
     updateCharacterCount();
@@ -88,6 +90,197 @@ function bindControls() {
     elements.copyButton.addEventListener("click", copyPng);
     elements.downloadButton.addEventListener("click", downloadPng);
     elements.resetButton.addEventListener("click", resetGenerator);
+}
+
+function enhanceSelects() {
+    for (const select of elements.form.querySelectorAll("select")) {
+        const wrapper = document.createElement("div");
+        const trigger = document.createElement("button");
+        const value = document.createElement("span");
+        const chevron = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+        const chevronPath = document.createElementNS("http://www.w3.org/2000/svg", "path");
+        const menu = document.createElement("div");
+        const label = elements.form.querySelector(`label[for="${select.id}"]`);
+
+        wrapper.className = "generator-select";
+        trigger.className = "generator-select-trigger";
+        trigger.type = "button";
+        trigger.id = `${select.id}-trigger`;
+        trigger.setAttribute("aria-haspopup", "listbox");
+        trigger.setAttribute("aria-expanded", "false");
+        trigger.setAttribute("aria-controls", `${select.id}-menu`);
+        const labelText = label?.textContent.trim() || select.name;
+        trigger.setAttribute("aria-label", labelText);
+        value.className = "generator-select-value";
+        chevron.classList.add("generator-select-chevron");
+        chevron.setAttribute("viewBox", "0 0 20 20");
+        chevron.setAttribute("aria-hidden", "true");
+        chevronPath.setAttribute("d", "m6 8 4 4 4-4");
+        chevronPath.setAttribute("fill", "none");
+        chevronPath.setAttribute("stroke", "currentColor");
+        chevronPath.setAttribute("stroke-linecap", "round");
+        chevronPath.setAttribute("stroke-linejoin", "round");
+        chevronPath.setAttribute("stroke-width", "1.8");
+        chevron.append(chevronPath);
+        trigger.append(value, chevron);
+
+        menu.className = "generator-select-menu";
+        menu.id = `${select.id}-menu`;
+        menu.setAttribute("role", "listbox");
+        menu.setAttribute("aria-label", labelText);
+        menu.hidden = true;
+
+        const instance = { select, wrapper, trigger, value, menu, labelText, options: [] };
+        for (const nativeOption of select.options) {
+            const option = document.createElement("div");
+            const optionLabel = document.createElement("span");
+            const check = document.createElement("span");
+            option.className = "generator-select-option";
+            option.dataset.value = nativeOption.value;
+            option.setAttribute("role", "option");
+            option.tabIndex = -1;
+            optionLabel.textContent = nativeOption.textContent;
+            check.className = "generator-select-check";
+            check.textContent = "✓";
+            check.setAttribute("aria-hidden", "true");
+            option.append(optionLabel, check);
+            option.addEventListener("click", () => chooseCustomOption(instance, nativeOption.value));
+            option.addEventListener("keydown", (event) => handleCustomOptionKeydown(event, instance));
+            menu.append(option);
+            instance.options.push(option);
+        }
+
+        select.before(wrapper);
+        wrapper.append(select, trigger, menu);
+        select.classList.add("generator-native-select");
+        select.tabIndex = -1;
+        select.setAttribute("aria-hidden", "true");
+        if (label) {
+            label.htmlFor = trigger.id;
+        }
+
+        trigger.addEventListener("click", () => toggleCustomSelect(instance));
+        trigger.addEventListener("keydown", (event) => handleCustomTriggerKeydown(event, instance));
+        select.addEventListener("change", () => syncCustomSelect(instance));
+        wrapper.addEventListener("focusout", (event) => {
+            if (!wrapper.contains(event.relatedTarget)) {
+                closeCustomSelect(instance);
+            }
+        });
+        customSelectInstances.push(instance);
+        syncCustomSelect(instance);
+    }
+
+    document.addEventListener("pointerdown", (event) => {
+        if (!event.target.closest(".generator-select")) {
+            closeAllCustomSelects();
+        }
+    });
+    window.addEventListener("blur", closeAllCustomSelects);
+}
+
+function toggleCustomSelect(instance) {
+    if (instance.menu.hidden) {
+        openCustomSelect(instance);
+    } else {
+        closeCustomSelect(instance);
+    }
+}
+
+function openCustomSelect(instance) {
+    closeAllCustomSelects(instance);
+    instance.menu.hidden = false;
+    instance.wrapper.classList.add("is-open");
+    instance.trigger.setAttribute("aria-expanded", "true");
+    const selected = instance.options.find((option) => option.dataset.value === instance.select.value);
+    window.requestAnimationFrame(() => selected?.focus());
+}
+
+function closeCustomSelect(instance, restoreFocus = false) {
+    instance.menu.hidden = true;
+    instance.wrapper.classList.remove("is-open");
+    instance.trigger.setAttribute("aria-expanded", "false");
+    if (restoreFocus) {
+        instance.trigger.focus();
+    }
+}
+
+function closeAllCustomSelects(except) {
+    for (const instance of customSelectInstances) {
+        if (instance !== except) {
+            closeCustomSelect(instance);
+        }
+    }
+}
+
+function chooseCustomOption(instance, nextValue) {
+    const changed = instance.select.value !== nextValue;
+    instance.select.value = nextValue;
+    syncCustomSelect(instance);
+    closeCustomSelect(instance, true);
+    if (changed) {
+        instance.select.dispatchEvent(new Event("change", { bubbles: true }));
+    }
+}
+
+function syncCustomSelect(instance) {
+    const selectedOption = [...instance.select.options]
+        .find((option) => option.value === instance.select.value);
+    instance.value.textContent = selectedOption?.textContent || "";
+    instance.trigger.setAttribute(
+        "aria-label",
+        `${instance.labelText}: ${selectedOption?.textContent || ""}`,
+    );
+    for (const option of instance.options) {
+        option.setAttribute("aria-selected", String(option.dataset.value === instance.select.value));
+    }
+}
+
+function syncAllCustomSelects() {
+    for (const instance of customSelectInstances) {
+        syncCustomSelect(instance);
+    }
+}
+
+function handleCustomTriggerKeydown(event, instance) {
+    if (["ArrowDown", "ArrowUp"].includes(event.key)) {
+        event.preventDefault();
+        openCustomSelect(instance);
+    } else if (event.key === "Escape") {
+        closeCustomSelect(instance);
+    }
+}
+
+function handleCustomOptionKeydown(event, instance) {
+    const currentIndex = instance.options.indexOf(event.currentTarget);
+    let nextIndex;
+    if (event.key === "ArrowDown") {
+        nextIndex = (currentIndex + 1) % instance.options.length;
+    } else if (event.key === "ArrowUp") {
+        nextIndex = (currentIndex - 1 + instance.options.length) % instance.options.length;
+    } else if (event.key === "Home") {
+        nextIndex = 0;
+    } else if (event.key === "End") {
+        nextIndex = instance.options.length - 1;
+    } else if (["Enter", " "].includes(event.key)) {
+        event.preventDefault();
+        chooseCustomOption(instance, event.currentTarget.dataset.value);
+        return;
+    } else if (event.key === "Escape") {
+        event.preventDefault();
+        closeCustomSelect(instance, true);
+        return;
+    } else if (event.key.length === 1) {
+        const character = event.key.toLocaleLowerCase();
+        nextIndex = instance.options.findIndex((option) => (
+            option.textContent.trim().toLocaleLowerCase().startsWith(character)
+        ));
+    }
+
+    if (nextIndex !== undefined && nextIndex >= 0) {
+        event.preventDefault();
+        instance.options[nextIndex].focus();
+    }
 }
 
 function scheduleRender() {
@@ -335,6 +528,7 @@ function resetGenerator() {
     elements.reliability.value = defaultState.reliability;
     elements.centerType.value = defaultState.centerType;
     elements.centerSize.value = defaultState.centerSize;
+    syncAllCustomSelects();
     centerImageDataUrl = "";
     elements.centerImageName.textContent = "No image selected";
     updateCenterFields();
