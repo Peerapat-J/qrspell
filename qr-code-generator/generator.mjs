@@ -1,6 +1,8 @@
 import {
     buildQrOptions,
     createTextBadgeDataUrl,
+    hexToHsv,
+    hsvToHex,
     quietZoneMargin,
     readabilityWarnings,
 } from "./generator-core.mjs";
@@ -52,6 +54,7 @@ let centerImageDataUrl = "";
 let renderTimer;
 let renderID = 0;
 const customSelectInstances = [];
+const customColorInstances = [];
 
 if (!window.QRCodeStyling || !window.jsQR) {
     setStatus("error", "The QR generator could not load. Refresh the page and try again.");
@@ -59,6 +62,7 @@ if (!window.QRCodeStyling || !window.jsQR) {
 } else {
     bindControls();
     enhanceSelects();
+    enhanceColorInputs();
     updateCenterFields();
     updateColorValues();
     updateCharacterCount();
@@ -189,11 +193,281 @@ function toggleCustomSelect(instance) {
 
 function openCustomSelect(instance) {
     closeAllCustomSelects(instance);
+    closeAllColorPickers();
     instance.menu.hidden = false;
     instance.wrapper.classList.add("is-open");
     instance.trigger.setAttribute("aria-expanded", "true");
     const selected = instance.options.find((option) => option.dataset.value === instance.select.value);
     window.requestAnimationFrame(() => selected?.focus());
+}
+
+function enhanceColorInputs() {
+    for (const input of [elements.foreground, elements.background]) {
+        const originalControl = input.closest(".generator-color-control");
+        const output = originalControl.querySelector("output");
+        const field = originalControl.closest(".generator-field");
+        const labelText = field.querySelector(".generator-field-label")?.textContent.trim() || "Color";
+        const wrapper = document.createElement("div");
+        const trigger = document.createElement("button");
+        const swatch = document.createElement("span");
+        const chevron = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+        const chevronPath = document.createElementNS("http://www.w3.org/2000/svg", "path");
+        const popover = document.createElement("div");
+        const plane = document.createElement("div");
+        const planeThumb = document.createElement("span");
+        const hueLabel = document.createElement("label");
+        const hueLabelText = document.createElement("span");
+        const hueInput = document.createElement("input");
+        const values = document.createElement("div");
+        const currentSwatch = document.createElement("span");
+        const hexLabel = document.createElement("label");
+        const hexLabelText = document.createElement("span");
+        const hexInput = document.createElement("input");
+        const presets = document.createElement("div");
+        const doneButton = document.createElement("button");
+
+        wrapper.className = "generator-color-control is-enhanced";
+        trigger.className = "generator-color-trigger";
+        trigger.type = "button";
+        trigger.id = `${input.id}-trigger`;
+        trigger.setAttribute("aria-haspopup", "dialog");
+        trigger.setAttribute("aria-expanded", "false");
+        trigger.setAttribute("aria-controls", `${input.id}-popover`);
+        swatch.className = "generator-color-swatch";
+        chevron.classList.add("generator-color-chevron");
+        chevron.setAttribute("viewBox", "0 0 20 20");
+        chevron.setAttribute("aria-hidden", "true");
+        chevronPath.setAttribute("d", "m6 8 4 4 4-4");
+        chevronPath.setAttribute("fill", "none");
+        chevronPath.setAttribute("stroke", "currentColor");
+        chevronPath.setAttribute("stroke-linecap", "round");
+        chevronPath.setAttribute("stroke-linejoin", "round");
+        chevronPath.setAttribute("stroke-width", "1.8");
+        chevron.append(chevronPath);
+        trigger.append(swatch, output, chevron);
+
+        popover.className = "generator-color-popover";
+        popover.id = `${input.id}-popover`;
+        popover.setAttribute("role", "dialog");
+        popover.setAttribute("aria-label", `${labelText} picker`);
+        popover.hidden = true;
+
+        plane.className = "generator-color-plane";
+        plane.tabIndex = 0;
+        plane.setAttribute("role", "slider");
+        plane.setAttribute("aria-label", `${labelText} saturation and brightness`);
+        plane.setAttribute("aria-valuemin", "0");
+        plane.setAttribute("aria-valuemax", "100");
+        planeThumb.className = "generator-color-plane-thumb";
+        plane.append(planeThumb);
+
+        hueLabel.className = "generator-hue-control";
+        hueLabelText.className = "visually-hidden";
+        hueLabelText.textContent = `${labelText} hue`;
+        hueInput.type = "range";
+        hueInput.min = "0";
+        hueInput.max = "359";
+        hueInput.step = "1";
+        hueInput.setAttribute("aria-label", `${labelText} hue`);
+        hueLabel.append(hueLabelText, hueInput);
+
+        values.className = "generator-color-values";
+        currentSwatch.className = "generator-current-color";
+        currentSwatch.setAttribute("aria-hidden", "true");
+        hexLabel.className = "generator-hex-control";
+        hexLabelText.textContent = "Hex";
+        hexInput.type = "text";
+        hexInput.inputMode = "text";
+        hexInput.maxLength = 7;
+        hexInput.spellcheck = false;
+        hexInput.autocomplete = "off";
+        hexLabel.append(hexLabelText, hexInput);
+        values.append(currentSwatch, hexLabel);
+
+        presets.className = "generator-color-presets";
+        presets.setAttribute("aria-label", "Suggested colors");
+        for (const preset of ["#000000", "#334155", "#2563EB", "#059669", "#D97706", "#DC2626", "#7C3AED", "#FFFFFF"]) {
+            const presetButton = document.createElement("button");
+            presetButton.className = "generator-color-preset";
+            presetButton.type = "button";
+            presetButton.dataset.color = preset;
+            presetButton.style.setProperty("--preset-color", preset);
+            presetButton.setAttribute("aria-label", preset);
+            presetButton.addEventListener("click", () => applyColor(instance, preset));
+            presets.append(presetButton);
+        }
+
+        doneButton.className = "generator-color-done";
+        doneButton.type = "button";
+        doneButton.textContent = "Done";
+        popover.append(plane, hueLabel, values, presets, doneButton);
+
+        originalControl.replaceWith(wrapper);
+        wrapper.append(input, trigger, popover);
+        input.classList.add("generator-native-color");
+        input.tabIndex = -1;
+        input.setAttribute("aria-hidden", "true");
+
+        const instance = {
+            input,
+            wrapper,
+            trigger,
+            swatch,
+            popover,
+            plane,
+            planeThumb,
+            hueInput,
+            hexInput,
+            currentSwatch,
+            presets,
+            doneButton,
+            labelText,
+            hue: 0,
+            saturation: 0,
+            brightness: 0,
+        };
+        customColorInstances.push(instance);
+        syncColorPicker(instance);
+
+        trigger.addEventListener("click", () => toggleColorPicker(instance));
+        input.addEventListener("input", () => syncColorPicker(instance));
+        hueInput.addEventListener("input", (event) => {
+            event.stopPropagation();
+            instance.hue = Number(hueInput.value);
+            applyColor(instance, hsvToHex(instance.hue, instance.saturation, instance.brightness));
+        });
+        hexInput.addEventListener("input", (event) => {
+            event.stopPropagation();
+            const value = hexInput.value.trim();
+            if (/^#[0-9A-F]{6}$/iu.test(value)) {
+                applyColor(instance, value);
+            }
+        });
+        hexInput.addEventListener("change", (event) => {
+            event.stopPropagation();
+            hexInput.value = input.value.toUpperCase();
+        });
+        plane.addEventListener("pointerdown", (event) => {
+            plane.setPointerCapture(event.pointerId);
+            updateColorFromPointer(event, instance);
+        });
+        plane.addEventListener("pointermove", (event) => {
+            if (plane.hasPointerCapture(event.pointerId)) {
+                updateColorFromPointer(event, instance);
+            }
+        });
+        plane.addEventListener("keydown", (event) => handleColorPlaneKeydown(event, instance));
+        doneButton.addEventListener("click", () => closeColorPicker(instance, true));
+        popover.addEventListener("keydown", (event) => {
+            if (event.key === "Escape") {
+                event.preventDefault();
+                closeColorPicker(instance, true);
+            }
+        });
+        wrapper.addEventListener("focusout", (event) => {
+            if (!wrapper.contains(event.relatedTarget)) {
+                closeColorPicker(instance);
+            }
+        });
+    }
+
+    document.addEventListener("pointerdown", (event) => {
+        if (!event.target.closest(".generator-color-control")) {
+            closeAllColorPickers();
+        }
+    });
+}
+
+function toggleColorPicker(instance) {
+    if (instance.popover.hidden) {
+        openColorPicker(instance);
+    } else {
+        closeColorPicker(instance);
+    }
+}
+
+function openColorPicker(instance) {
+    closeAllColorPickers(instance);
+    closeAllCustomSelects();
+    instance.popover.hidden = false;
+    instance.wrapper.classList.add("is-open");
+    instance.trigger.setAttribute("aria-expanded", "true");
+    window.requestAnimationFrame(() => instance.plane.focus());
+}
+
+function closeColorPicker(instance, restoreFocus = false) {
+    instance.popover.hidden = true;
+    instance.wrapper.classList.remove("is-open");
+    instance.trigger.setAttribute("aria-expanded", "false");
+    if (restoreFocus) {
+        instance.trigger.focus();
+    }
+}
+
+function closeAllColorPickers(except) {
+    for (const instance of customColorInstances) {
+        if (instance !== except) {
+            closeColorPicker(instance);
+        }
+    }
+}
+
+function applyColor(instance, value) {
+    instance.input.value = value;
+    syncColorPicker(instance);
+    instance.input.dispatchEvent(new Event("input", { bubbles: true }));
+}
+
+function syncColorPicker(instance) {
+    const color = instance.input.value.toUpperCase();
+    const hsv = hexToHsv(color);
+    instance.hue = hsv.hue;
+    instance.saturation = hsv.saturation;
+    instance.brightness = hsv.brightness;
+    instance.swatch.style.background = color;
+    instance.currentSwatch.style.background = color;
+    instance.hexInput.value = color;
+    instance.hueInput.value = String(Math.round(instance.hue));
+    instance.plane.style.setProperty("--picker-hue", `hsl(${instance.hue} 100% 50%)`);
+    instance.planeThumb.style.left = `${instance.saturation}%`;
+    instance.planeThumb.style.top = `${100 - instance.brightness}%`;
+    instance.plane.setAttribute("aria-valuenow", String(Math.round(instance.saturation)));
+    instance.plane.setAttribute("aria-valuetext", `${color}, ${Math.round(instance.saturation)}% saturation, ${Math.round(instance.brightness)}% brightness`);
+    instance.trigger.setAttribute("aria-label", `${instance.labelText}: ${color}`);
+    for (const preset of instance.presets.children) {
+        preset.setAttribute("aria-pressed", String(preset.dataset.color === color));
+    }
+}
+
+function syncAllColorPickers() {
+    for (const instance of customColorInstances) {
+        syncColorPicker(instance);
+    }
+}
+
+function updateColorFromPointer(event, instance) {
+    const bounds = instance.plane.getBoundingClientRect();
+    instance.saturation = clampPercent(((event.clientX - bounds.left) / bounds.width) * 100);
+    instance.brightness = clampPercent((1 - ((event.clientY - bounds.top) / bounds.height)) * 100);
+    applyColor(instance, hsvToHex(instance.hue, instance.saturation, instance.brightness));
+}
+
+function handleColorPlaneKeydown(event, instance) {
+    const step = event.shiftKey ? 10 : 2;
+    if (event.key === "ArrowLeft") instance.saturation -= step;
+    else if (event.key === "ArrowRight") instance.saturation += step;
+    else if (event.key === "ArrowUp") instance.brightness += step;
+    else if (event.key === "ArrowDown") instance.brightness -= step;
+    else return;
+
+    event.preventDefault();
+    instance.saturation = clampPercent(instance.saturation);
+    instance.brightness = clampPercent(instance.brightness);
+    applyColor(instance, hsvToHex(instance.hue, instance.saturation, instance.brightness));
+}
+
+function clampPercent(value) {
+    return Math.min(Math.max(value, 0), 100);
 }
 
 function closeCustomSelect(instance, restoreFocus = false) {
@@ -560,6 +834,7 @@ function updateCenterFields() {
 function updateColorValues() {
     elements.foregroundValue.textContent = elements.foreground.value.toUpperCase();
     elements.backgroundValue.textContent = elements.background.value.toUpperCase();
+    syncAllColorPickers();
 }
 
 function updateCharacterCount() {

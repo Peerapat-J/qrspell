@@ -16,6 +16,54 @@ export function contrastRatio(foreground, background) {
     return (lighter + 0.05) / (darker + 0.05);
 }
 
+export function hexToHsv(value) {
+    const hex = normalizeHexColor(value);
+    const red = Number.parseInt(hex.slice(1, 3), 16) / 255;
+    const green = Number.parseInt(hex.slice(3, 5), 16) / 255;
+    const blue = Number.parseInt(hex.slice(5, 7), 16) / 255;
+    const maximum = Math.max(red, green, blue);
+    const minimum = Math.min(red, green, blue);
+    const delta = maximum - minimum;
+    let hue = 0;
+
+    if (delta > 0) {
+        if (maximum === red) {
+            hue = 60 * (((green - blue) / delta) % 6);
+        } else if (maximum === green) {
+            hue = 60 * (((blue - red) / delta) + 2);
+        } else {
+            hue = 60 * (((red - green) / delta) + 4);
+        }
+    }
+
+    return {
+        hue: (hue + 360) % 360,
+        saturation: maximum === 0 ? 0 : (delta / maximum) * 100,
+        brightness: maximum * 100,
+    };
+}
+
+export function hsvToHex(hue, saturation, brightness) {
+    const normalizedHue = ((Number(hue) || 0) % 360 + 360) % 360;
+    const normalizedSaturation = clamp(Number(saturation) || 0, 0, 100) / 100;
+    const normalizedBrightness = clamp(Number(brightness) || 0, 0, 100) / 100;
+    const chroma = normalizedBrightness * normalizedSaturation;
+    const secondary = chroma * (1 - Math.abs(((normalizedHue / 60) % 2) - 1));
+    const offset = normalizedBrightness - chroma;
+    let channels;
+
+    if (normalizedHue < 60) channels = [chroma, secondary, 0];
+    else if (normalizedHue < 120) channels = [secondary, chroma, 0];
+    else if (normalizedHue < 180) channels = [0, chroma, secondary];
+    else if (normalizedHue < 240) channels = [0, secondary, chroma];
+    else if (normalizedHue < 300) channels = [secondary, 0, chroma];
+    else channels = [chroma, 0, secondary];
+
+    return `#${channels.map((channel) => (
+        Math.round((channel + offset) * 255).toString(16).padStart(2, "0")
+    )).join("").toUpperCase()}`;
+}
+
 export function readabilityWarnings({
     foreground,
     background,

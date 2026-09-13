@@ -5,6 +5,8 @@ import {
     buildQrOptions,
     contrastRatio,
     createTextBadgeDataUrl,
+    hexToHsv,
+    hsvToHex,
     normalizeHexColor,
     quietZoneMargin,
     readabilityWarnings,
@@ -19,6 +21,12 @@ test("normalizes valid colors and falls back for invalid values", () => {
 test("calculates readable black and white contrast", () => {
     assert.equal(contrastRatio("#000000", "#FFFFFF"), 21);
     assert.ok(contrastRatio("#777777", "#FFFFFF") < 4.5);
+});
+
+test("converts colors between hex and HSV", () => {
+    assert.deepEqual(hexToHsv("#FF0000"), { hue: 0, saturation: 100, brightness: 100 });
+    assert.equal(hsvToHex(0, 100, 100), "#FF0000");
+    assert.equal(hsvToHex(210, 79.06976744186046, 33.72549019607843), "#123456");
 });
 
 test("reports contrast, inversion, density, and center-content risks", () => {

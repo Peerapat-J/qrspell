@@ -100,6 +100,16 @@ test("generator select menus use the styled accessible enhancement", () => {
     assert.match(generatorStyles, /border-radius: 14px/u);
 });
 
+test("generator color controls use the styled accessible picker", () => {
+    assert.match(generatorRuntime, /function enhanceColorInputs\(\)/u);
+    assert.match(generatorRuntime, /role", "dialog/u);
+    assert.match(generatorRuntime, /saturation and brightness/u);
+    assert.match(generatorRuntime, /function handleColorPlaneKeydown/u);
+    assert.match(generatorStyles, /\.generator-color-popover/u);
+    assert.match(generatorStyles, /\.generator-color-plane/u);
+    assert.match(generatorStyles, /\.generator-color-presets/u);
+});
+
 test("site navigation and sitemap expose the QR generator", () => {
     const pages = [
         "index.html",
