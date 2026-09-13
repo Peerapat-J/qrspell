@@ -185,6 +185,44 @@ test("QR generator controls work together in a real browser", { timeout: 30_000 
                 downloadDisabled: true,
             });
         });
+
+        await context.test("corrupt center images are rejected before rendering", async () => {
+            await navigate(client, `${site.origin}/qr-code-generator/?test=corrupt-image`);
+            await client.evaluate(`(() => {
+                const content = document.querySelector("#qr-content");
+                content.value = "corrupt image test";
+                content.dispatchEvent(new Event("input", { bubbles: true }));
+            })()`);
+            await waitFor(client, `document.querySelector("#verification-status").dataset.state === "verified"`);
+            await client.evaluate(`(() => {
+                const centerType = document.querySelector("#center-type");
+                centerType.value = "image";
+                centerType.dispatchEvent(new Event("change", { bubbles: true }));
+                const transfer = new DataTransfer();
+                transfer.items.add(new File(
+                    [new Uint8Array([1, 2, 3, 4])],
+                    "corrupt.png",
+                    { type: "image/png" },
+                ));
+                const input = document.querySelector("#center-image");
+                input.files = transfer.files;
+                input.dispatchEvent(new Event("change", { bubbles: true }));
+            })()`);
+            await waitFor(client, `document.querySelector("#center-image-error").textContent.includes("could not be decoded")`);
+            assert.deepEqual(await client.evaluate(`(() => ({
+                error: document.querySelector("#center-image-error").textContent,
+                fileCount: document.querySelector("#center-image").files.length,
+                previewCleared: document.querySelector("#qr-preview-empty").hidden === false,
+                copyDisabled: document.querySelector("#copy-qr").disabled,
+                downloadDisabled: document.querySelector("#download-qr").disabled,
+            }))()`), {
+                error: "The selected image could not be decoded. Choose a valid PNG, JPEG, or WebP file.",
+                fileCount: 0,
+                previewCleared: true,
+                copyDisabled: true,
+                downloadDisabled: true,
+            });
+        });
     } finally {
         client.close();
         browser.process.kill("SIGTERM");
