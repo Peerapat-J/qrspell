@@ -171,7 +171,8 @@ export function buildQrOptions(settings) {
             hideBackgroundDots: true,
             imageSize: clamp(Number(settings.centerSize) || 0.24, 0.16, 0.36),
             margin: Math.max(2, Math.round(exportSize * 0.008)),
-            saveAsBlob: true,
+            // Center images are already local data URLs, so the vendor does not need XHR conversion.
+            saveAsBlob: false,
         },
     };
 }

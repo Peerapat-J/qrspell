@@ -86,11 +86,14 @@ test("QR generator runtime dependencies are bundled locally", () => {
     assert.ok(readFileSync(join(root, "assets/vendor/jsqr/jsQR.js")).length > 250_000);
 });
 
-test("QR content and center images have no network upload path", () => {
+test("QR generator page enforces a local-only network boundary", () => {
     const runtime = [
         generatorRuntime,
         read("qr-code-generator/generator-core.mjs"),
     ].join("\n");
+    assert.match(generator, /http-equiv="Content-Security-Policy"/u);
+    assert.match(generator, /connect-src 'none'/u);
+    assert.doesNotMatch(generator, /cloudflareinsights|data-cf-beacon/iu);
     assert.doesNotMatch(runtime, /\bfetch\s*\(|XMLHttpRequest|WebSocket|sendBeacon/gu);
     assert.doesNotMatch(generator, /<form\b[^>]*\baction=/gu);
 });

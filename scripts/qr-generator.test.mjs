@@ -78,6 +78,7 @@ test("builds supported QR options and safe defaults", () => {
     assert.equal(configured.dotsOptions.type, "dots");
     assert.equal(configured.cornersSquareOptions.type, "dot");
     assert.equal(configured.imageOptions.imageSize, 0.3);
+    assert.equal(configured.imageOptions.saveAsBlob, false);
 
     const defaults = buildQrOptions({ content: "test" });
     assert.equal(defaults.width, 512);

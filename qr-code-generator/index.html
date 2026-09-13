@@ -3,6 +3,7 @@
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'; media-src 'none'">
         <title>Free QR Code Generator - Customize &amp; Download | QRSpell</title>
         <meta name="description" content="Create a free custom QR code in your browser. Choose colors, shapes, reliability, and a center logo, then verify and download a PNG.">
         <link rel="canonical" href="https://qrspell.app/qr-code-generator/">
@@ -18,10 +19,10 @@
         <link rel="icon" type="image/png" href="../assets/qrspell-app-icon.png">
         <link rel="apple-touch-icon" href="../assets/qrspell-app-icon.png">
         <link rel="stylesheet" href="../styles.css?v=20260903c">
-        <link rel="stylesheet" href="generator.css?v=20260913a">
+        <link rel="stylesheet" href="generator.css?v=20260914a">
         <script src="../assets/vendor/qr-code-styling/qr-code-styling.js?v=1.9.2"></script>
         <script src="../assets/vendor/jsqr/jsQR.js?v=1.4.0"></script>
-        <script type="module" src="generator.mjs?v=20260913a"></script>
+        <script type="module" src="generator.mjs?v=20260914a"></script>
         <script type="application/ld+json">
             {
                 "@context": "https://schema.org",
@@ -230,8 +231,5 @@
             </nav>
         </footer>
 
-        <!-- Cloudflare Web Analytics -->
-        <script defer src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token":"e43189ed6f5c43d29472b9b18c73b226"}'></script>
-        <!-- End Cloudflare Web Analytics -->
     </body>
 </html>

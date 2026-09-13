@@ -7,7 +7,7 @@ import {
     quietZoneMargin,
     readabilityWarnings,
     truncateGraphemes,
-} from "./generator-core.mjs";
+} from "./generator-core.mjs?v=20260914a";
 
 const elements = {
     form: document.querySelector(".generator-controls"),

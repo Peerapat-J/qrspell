@@ -143,6 +143,13 @@ function validateCloudflareBeacon(htmlFile, html) {
         ...html.matchAll(/<script\b[^>]*static\.cloudflareinsights\.com\/beacon\.min\.js[^>]*><\/script>/giu),
     ];
 
+    if (htmlFile === "qr-code-generator/index.html") {
+        if (beaconScripts.length !== 0) {
+            errors.push(`${htmlFile} must not include Cloudflare Web Analytics.`);
+        }
+        return;
+    }
+
     if (beaconScripts.length !== 1) {
         errors.push(`${htmlFile} must include exactly one Cloudflare Web Analytics beacon script.`);
         return;
