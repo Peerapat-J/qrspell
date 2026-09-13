@@ -50,6 +50,7 @@ const defaultState = {
 
 let currentQr;
 let currentContent = "";
+let currentQrVerified = false;
 let centerImageDataUrl = "";
 let renderTimer;
 let renderID = 0;
@@ -608,12 +609,15 @@ async function renderQr() {
             return;
         }
 
-        enableExport();
         if (decoded === content) {
+            currentQrVerified = true;
+            enableExport();
             setStatus("verified", "QR data verified");
         } else if (decoded) {
+            disableExport();
             setStatus("error", "The decoded QR data does not match your content.");
         } else {
+            disableExport();
             setStatus("warning", "This design could not be verified. Try stronger contrast or simpler styling.");
         }
     } catch (error) {
@@ -757,7 +761,7 @@ function readFileAsDataUrl(file) {
 }
 
 async function copyPng() {
-    if (!currentQr) {
+    if (!currentQr || !currentQrVerified) {
         return;
     }
 
@@ -774,7 +778,7 @@ async function copyPng() {
 }
 
 async function downloadPng() {
-    if (!currentQr) {
+    if (!currentQr || !currentQrVerified) {
         return;
     }
 
@@ -853,6 +857,7 @@ function enableExport() {
 }
 
 function disableExport() {
+    currentQrVerified = false;
     elements.copyButton.disabled = true;
     elements.downloadButton.disabled = true;
 }
