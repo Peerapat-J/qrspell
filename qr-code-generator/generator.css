@@ -617,18 +617,30 @@
 }
 
 .generator-reset {
-    padding: 6px 0;
-    border: 0;
-    background: transparent;
-    color: #64748b;
+    min-height: 34px;
+    padding: 7px 12px;
+    border: 1px solid #b8c4d3;
+    border-radius: 10px;
+    background: #f1f5f9;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+    color: #334155;
     cursor: pointer;
     font-size: 13px;
     font-weight: 700;
+    transition: background 140ms ease, border-color 140ms ease, color 140ms ease, transform 140ms ease;
 }
 
 .generator-reset:hover,
 .generator-reset:focus-visible {
+    border-color: #94a3b8;
+    background: #e2e8f0;
     color: var(--ink);
+    transform: translateY(-1px);
+}
+
+.generator-reset:focus-visible {
+    outline: 3px solid rgba(100, 116, 139, 0.18);
+    outline-offset: 2px;
 }
 
 .qr-preview-stage {
