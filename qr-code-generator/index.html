@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>Free QR Code Generator - Customize &amp; Download | QRSpell</title>
+        <meta name="description" content="Create a free custom QR code in your browser. Choose colors, shapes, reliability, and a center logo, then verify and download a PNG.">
+        <link rel="canonical" href="https://qrspell.app/qr-code-generator/">
+        <meta property="og:type" content="website">
+        <meta property="og:url" content="https://qrspell.app/qr-code-generator/">
+        <meta property="og:title" content="Free QR Code Generator - Customize &amp; Download | QRSpell">
+        <meta property="og:description" content="Create a free custom QR code in your browser. Choose colors, shapes, reliability, and a center logo, then verify and download a PNG.">
+        <meta property="og:image" content="https://qrspell.app/assets/qrspell-app-icon.png">
+        <meta name="twitter:card" content="summary">
+        <meta name="twitter:title" content="Free QR Code Generator - Customize &amp; Download | QRSpell">
+        <meta name="twitter:description" content="Create a free custom QR code in your browser. Choose colors, shapes, reliability, and a center logo, then verify and download a PNG.">
+        <meta name="twitter:image" content="https://qrspell.app/assets/qrspell-app-icon.png">
+        <link rel="icon" type="image/png" href="../assets/qrspell-app-icon.png">
+        <link rel="apple-touch-icon" href="../assets/qrspell-app-icon.png">
+        <link rel="stylesheet" href="../styles.css?v=20260903c">
+        <link rel="stylesheet" href="generator.css?v=20260913a">
+        <script src="../assets/vendor/qr-code-styling/qr-code-styling.js?v=1.9.2"></script>
+        <script src="../assets/vendor/jsqr/jsQR.js?v=1.4.0"></script>
+        <script type="module" src="generator.mjs?v=20260913a"></script>
+        <script type="application/ld+json">
+            {
+                "@context": "https://schema.org",
+                "@type": "WebApplication",
+                "name": "Free QR Code Generator by QRSpell",
+                "url": "https://qrspell.app/qr-code-generator/",
+                "applicationCategory": "UtilitiesApplication",
+                "operatingSystem": "Any",
+                "browserRequirements": "Requires JavaScript and a modern web browser",
+                "description": "Create a free custom QR code in your browser. Choose colors, shapes, reliability, and a center logo, then verify and download a PNG.",
+                "offers": {
+                    "@type": "Offer",
+                    "price": 0,
+                    "priceCurrency": "USD"
+                }
+            }
+        </script>
+    </head>
+    <body class="generator-page">
+        <header class="site-header">
+            <a class="brand" href="../" aria-label="QRSpell home">
+                <img src="../assets/qrspell-app-icon.png" alt="" width="40" height="40">
+                <span>QRSpell</span>
+            </a>
+            <nav class="nav-links" aria-label="Main navigation">
+                <a href="../qr-code-generator/" aria-current="page">QR Generator</a>
+                <a href="https://apps.apple.com/app/id6771453521" target="_blank" rel="noopener noreferrer">Download</a>
+                <a href="../changelog/">Changelog</a>
+                <a href="../privacy/">Privacy</a>
+                <a href="https://www.apple.com/legal/internet-services/itunes/dev/stdeula/" target="_blank" rel="noopener noreferrer">Terms of Service</a>
+                <a href="../helpcenter/">Help Center</a>
+            </nav>
+        </header>
+
+        <main class="generator-shell">
+            <section class="generator-hero" aria-labelledby="generator-title">
+                <p class="generator-eyebrow">Free browser tool</p>
+                <h1 id="generator-title">Create a QR code that feels like yours.</h1>
+                <p class="generator-hero-copy">Add your content, customize the design, and download a verified PNG. No sign-up required.</p>
+            </section>
+
+            <section class="generator-workspace" aria-label="QR code generator">
+                <form class="generator-controls" autocomplete="off">
+                    <div class="generator-section">
+                        <div class="generator-section-heading">
+                            <h2>Content</h2>
+                            <span id="character-count">0 characters</span>
+                        </div>
+                        <div class="generator-field">
+                            <label for="qr-content">Text or URL</label>
+                            <textarea id="qr-content" name="content" placeholder="Paste a URL or type anything" spellcheck="false"></textarea>
+                        </div>
+                    </div>
+
+                    <div class="generator-section">
+                        <div class="generator-section-heading">
+                            <h2>Style</h2>
+                        </div>
+                        <div class="generator-grid">
+                            <div class="generator-field">
+                                <label for="module-shape">Modules</label>
+                                <select id="module-shape" name="module-shape">
+                                    <option value="square">Square</option>
+                                    <option value="rounded">Rounded</option>
+                                    <option value="dots">Dots</option>
+                                </select>
+                            </div>
+                            <div class="generator-field">
+                                <label for="finder-shape">Finders</label>
+                                <select id="finder-shape" name="finder-shape">
+                                    <option value="square">Square</option>
+                                    <option value="rounded">Rounded</option>
+                                    <option value="circle">Circle</option>
+                                </select>
+                            </div>
+                            <div class="generator-field">
+                                <span class="generator-field-label">QR color</span>
+                                <label class="generator-color-control">
+                                    <span class="visually-hidden">QR color</span>
+                                    <input id="foreground-color" name="foreground-color" type="color" value="#000000">
+                                    <output id="foreground-value" for="foreground-color">#000000</output>
+                                </label>
+                            </div>
+                            <div class="generator-field">
+                                <span class="generator-field-label">Background</span>
+                                <label class="generator-color-control">
+                                    <span class="visually-hidden">Background color</span>
+                                    <input id="background-color" name="background-color" type="color" value="#ffffff">
+                                    <output id="background-value" for="background-color">#FFFFFF</output>
+                                </label>
+                            </div>
+                            <div class="generator-field">
+                                <label for="export-size">PNG size</label>
+                                <select id="export-size" name="export-size">
+                                    <option value="256">256 x 256</option>
+                                    <option value="512" selected>512 x 512</option>
+                                    <option value="1024">1024 x 1024</option>
+                                </select>
+                            </div>
+                            <div class="generator-field">
+                                <label for="reliability">Reliability</label>
+                                <select id="reliability" name="reliability">
+                                    <option value="M">Standard</option>
+                                    <option value="Q" selected>High</option>
+                                    <option value="H">Maximum</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="generator-section">
+                        <div class="generator-section-heading">
+                            <h2>Center</h2>
+                            <span>Optional</span>
+                        </div>
+                        <div class="generator-grid">
+                            <div class="generator-field">
+                                <label for="center-type">Center content</label>
+                                <select id="center-type" name="center-type">
+                                    <option value="none" selected>None</option>
+                                    <option value="text">Text or emoji</option>
+                                    <option value="image">Image</option>
+                                </select>
+                            </div>
+                            <div class="generator-field" id="center-size-field" hidden>
+                                <label for="center-size">Center size</label>
+                                <div class="generator-range-row">
+                                    <input id="center-size" name="center-size" type="range" min="0.16" max="0.36" value="0.24" step="0.01">
+                                    <output id="center-size-value" for="center-size">24%</output>
+                                </div>
+                            </div>
+                            <div class="generator-field" id="center-text-field" hidden>
+                                <label for="center-text">Text or emoji</label>
+                                <input id="center-text" name="center-text" type="text" maxlength="6" placeholder="QR">
+                            </div>
+                            <div class="generator-field" id="center-image-field" hidden>
+                                <span class="generator-field-label">Center image</span>
+                                <label class="generator-upload">
+                                    <input id="center-image" name="center-image" type="file" accept="image/*">
+                                    <span class="generator-upload-action">Choose image</span>
+                                    <span class="generator-upload-name" id="center-image-name">No image selected</span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+
+                <aside class="generator-preview-card" aria-labelledby="preview-title">
+                    <div class="generator-preview-heading">
+                        <h2 id="preview-title">Preview</h2>
+                        <button class="generator-reset" id="reset-generator" type="button">Reset</button>
+                    </div>
+                    <div class="qr-preview-stage" id="qr-preview" aria-live="polite">
+                        <div class="qr-preview-empty" id="qr-preview-empty">
+                            <svg viewBox="0 0 24 24" aria-hidden="true">
+                                <path fill="currentColor" d="M3 3h7v7H3V3Zm2 2v3h3V5H5Zm9-2h7v7h-7V3Zm2 2v3h3V5h-3ZM3 14h7v7H3v-7Zm2 2v3h3v-3H5Zm9-2h3v3h-3v-3Zm4 0h3v7h-3v-3h-3v-3h3v-1Zm-4 5h3v2h-3v-2Z"/>
+                            </svg>
+                            <p>Your QR preview will appear here.</p>
+                        </div>
+                    </div>
+                    <div class="generator-status" id="verification-status" data-state="idle" role="status" aria-live="polite">
+                        <span class="generator-status-dot" aria-hidden="true"></span>
+                        <span>Enter content to create a QR code</span>
+                    </div>
+                    <ul class="generator-warnings" id="readability-warnings" hidden></ul>
+                    <div class="generator-actions">
+                        <button class="generator-button" id="copy-qr" type="button" disabled>Copy PNG</button>
+                        <button class="generator-button generator-button-primary" id="download-qr" type="button" disabled>Download PNG</button>
+                    </div>
+                    <p class="generator-privacy">QR codes are generated locally in your browser.</p>
+                </aside>
+            </section>
+
+            <section class="generator-app-cta" aria-labelledby="scan-cta-title">
+                <div class="generator-app-cta-copy">
+                    <h2 id="scan-cta-title">Need to scan a QR code on your Mac?</h2>
+                    <p>QRSpell reads QR codes directly from your screen, selected area, or visible displays.</p>
+                </div>
+                <a class="button-link" href="https://apps.apple.com/app/id6771453521" target="_blank" rel="noopener noreferrer">Get QRSpell for Mac</a>
+            </section>
+        </main>
+
+        <footer class="footer">
+            <p>&copy; 2026 Peerapat Jardrit. All rights reserved.</p>
+            <nav aria-label="Footer navigation">
+                <a href="../qr-code-generator/" aria-current="page">QR Generator</a>
+                <a href="https://apps.apple.com/app/id6771453521" target="_blank" rel="noopener noreferrer">Download</a>
+                <a href="../changelog/">Changelog</a>
+                <a href="../privacy/">Privacy</a>
+                <a href="https://www.apple.com/legal/internet-services/itunes/dev/stdeula/" target="_blank" rel="noopener noreferrer">Terms of Service</a>
+                <a href="../Acknowledgements/">Open Source Licenses</a>
+                <a href="../helpcenter/">Help Center</a>
+            </nav>
+        </footer>
+
+        <!-- Cloudflare Web Analytics -->
+        <script defer src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token":"e43189ed6f5c43d29472b9b18c73b226"}'></script>
+        <!-- End Cloudflare Web Analytics -->
+    </body>
+</html>
