@@ -578,6 +578,21 @@
     white-space: nowrap;
 }
 
+.generator-field-help,
+.generator-field-error {
+    font-size: 13px;
+    line-height: 1.4;
+}
+
+.generator-field-help {
+    color: #64748b;
+}
+
+.generator-field-error {
+    color: #b91c1c;
+    font-weight: 620;
+}
+
 .generator-range-row {
     display: grid;
     min-height: 44px;

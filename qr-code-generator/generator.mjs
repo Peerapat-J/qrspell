@@ -25,6 +25,7 @@ const elements = {
     centerImageField: document.querySelector("#center-image-field"),
     centerImage: document.querySelector("#center-image"),
     centerImageName: document.querySelector("#center-image-name"),
+    centerImageError: document.querySelector("#center-image-error"),
     centerSizeField: document.querySelector("#center-size-field"),
     centerSize: document.querySelector("#center-size"),
     centerSizeValue: document.querySelector("#center-size-value"),
@@ -52,8 +53,10 @@ let currentQr;
 let currentContent = "";
 let currentQrVerified = false;
 let centerImageDataUrl = "";
+let centerImageLoadID = 0;
 let renderTimer;
 let renderID = 0;
+const maximumCenterImageBytes = 5 * 1024 * 1024;
 const customSelectInstances = [];
 const customColorInstances = [];
 
@@ -722,8 +725,11 @@ function loadBlobImage(blob) {
 
 async function loadCenterImage() {
     const [file] = elements.centerImage.files;
+    const activeLoadID = ++centerImageLoadID;
     centerImageDataUrl = "";
     elements.centerImageName.textContent = "No image selected";
+    clearCenterImageError();
+    invalidateRenderedQr();
 
     if (!file) {
         scheduleRender();
@@ -731,26 +737,56 @@ async function loadCenterImage() {
     }
 
     if (!file.type.startsWith("image/")) {
-        setStatus("error", "Choose an image file for the center logo.");
-        elements.centerImage.value = "";
+        rejectCenterImage("Choose an image file for the center logo.");
         return;
     }
 
-    if (file.size > 5 * 1024 * 1024) {
-        setStatus("error", "Choose an image smaller than 5 MB.");
-        elements.centerImage.value = "";
+    if (file.size > maximumCenterImageBytes) {
+        rejectCenterImage("Choose an image no larger than 5 MB.");
         return;
     }
 
+    elements.centerImageName.textContent = file.name;
+    setStatus("checking", "Checking center image…");
     try {
-        centerImageDataUrl = await readFileAsDataUrl(file);
-        elements.centerImageName.textContent = file.name;
+        const dataUrl = await readFileAsDataUrl(file);
+        if (activeLoadID !== centerImageLoadID) {
+            return;
+        }
+        centerImageDataUrl = dataUrl;
         scheduleRender();
     } catch {
-        centerImageDataUrl = "";
-        elements.centerImage.value = "";
-        setStatus("error", "The selected image could not be read.");
+        if (activeLoadID !== centerImageLoadID) {
+            return;
+        }
+        rejectCenterImage("The selected image could not be read.");
     }
+}
+
+function rejectCenterImage(message) {
+    centerImageDataUrl = "";
+    elements.centerImage.value = "";
+    elements.centerImageName.textContent = "No image selected";
+    elements.centerImageError.textContent = message;
+    elements.centerImageError.hidden = false;
+    invalidateRenderedQr();
+    setStatus("error", message);
+}
+
+function clearCenterImageError() {
+    elements.centerImageError.textContent = "";
+    elements.centerImageError.hidden = true;
+}
+
+function invalidateRenderedQr() {
+    window.clearTimeout(renderTimer);
+    renderID += 1;
+    currentQr = undefined;
+    elements.preview.replaceChildren(elements.previewEmpty);
+    elements.previewEmpty.hidden = false;
+    elements.warnings.replaceChildren();
+    elements.warnings.hidden = true;
+    disableExport();
 }
 
 function readFileAsDataUrl(file) {
@@ -799,6 +835,7 @@ async function downloadPng() {
 }
 
 function resetGenerator() {
+    centerImageLoadID += 1;
     elements.form.reset();
     elements.moduleShape.value = defaultState.moduleShape;
     elements.finderShape.value = defaultState.finderShape;
@@ -814,6 +851,7 @@ function resetGenerator() {
     }
     centerImageDataUrl = "";
     elements.centerImageName.textContent = "No image selected";
+    clearCenterImageError();
     updateCenterFields();
     updateColorValues();
     updateCharacterCount();
