@@ -402,10 +402,6 @@
         var(--picker-hue, #ff0000);
 }
 
-.generator-color-plane:focus-visible {
-    box-shadow: 0 0 0 3px rgba(100, 116, 139, 0.18);
-}
-
 .generator-color-plane-thumb {
     position: absolute;
     width: 17px;
@@ -449,6 +445,33 @@
     border-radius: 50%;
     background: transparent;
     box-shadow: 0 1px 5px rgba(15, 23, 42, 0.7);
+}
+
+.generator-color-channels {
+    display: grid;
+    gap: 8px;
+}
+
+.generator-color-channel {
+    display: grid;
+    align-items: center;
+    grid-template-columns: 72px 1fr 38px;
+    gap: 8px;
+    color: #475569;
+    font-size: 12px;
+    font-weight: 650;
+}
+
+.generator-color-channel input {
+    width: 100%;
+    margin: 0;
+    accent-color: #334155;
+}
+
+.generator-color-channel output {
+    color: #64748b;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
 }
 
 .generator-color-values {

@@ -229,6 +229,9 @@ function enhanceColorInputs() {
         const hueLabel = document.createElement("label");
         const hueLabelText = document.createElement("span");
         const hueInput = document.createElement("input");
+        const channelControls = document.createElement("div");
+        const saturationControl = createColorChannelControl(`${labelText} saturation`, "Saturation");
+        const brightnessControl = createColorChannelControl(`${labelText} brightness`, "Brightness");
         const values = document.createElement("div");
         const currentSwatch = document.createElement("span");
         const hexLabel = document.createElement("label");
@@ -264,11 +267,7 @@ function enhanceColorInputs() {
         popover.hidden = true;
 
         plane.className = "generator-color-plane";
-        plane.tabIndex = 0;
-        plane.setAttribute("role", "slider");
-        plane.setAttribute("aria-label", `${labelText} saturation and brightness`);
-        plane.setAttribute("aria-valuemin", "0");
-        plane.setAttribute("aria-valuemax", "100");
+        plane.setAttribute("aria-hidden", "true");
         planeThumb.className = "generator-color-plane-thumb";
         plane.append(planeThumb);
 
@@ -281,6 +280,9 @@ function enhanceColorInputs() {
         hueInput.step = "1";
         hueInput.setAttribute("aria-label", `${labelText} hue`);
         hueLabel.append(hueLabelText, hueInput);
+
+        channelControls.className = "generator-color-channels";
+        channelControls.append(saturationControl.label, brightnessControl.label);
 
         values.className = "generator-color-values";
         currentSwatch.className = "generator-current-color";
@@ -311,7 +313,7 @@ function enhanceColorInputs() {
         doneButton.className = "generator-color-done";
         doneButton.type = "button";
         doneButton.textContent = "Done";
-        popover.append(plane, hueLabel, values, presets, doneButton);
+        popover.append(plane, hueLabel, channelControls, values, presets, doneButton);
 
         originalControl.replaceWith(wrapper);
         wrapper.append(input, trigger, popover);
@@ -328,6 +330,10 @@ function enhanceColorInputs() {
             plane,
             planeThumb,
             hueInput,
+            saturationInput: saturationControl.input,
+            saturationOutput: saturationControl.output,
+            brightnessInput: brightnessControl.input,
+            brightnessOutput: brightnessControl.output,
             hexInput,
             currentSwatch,
             presets,
@@ -345,6 +351,16 @@ function enhanceColorInputs() {
         hueInput.addEventListener("input", (event) => {
             event.stopPropagation();
             instance.hue = Number(hueInput.value);
+            applyColor(instance, hsvToHex(instance.hue, instance.saturation, instance.brightness));
+        });
+        saturationControl.input.addEventListener("input", (event) => {
+            event.stopPropagation();
+            instance.saturation = clampPercent(Number(saturationControl.input.value));
+            applyColor(instance, hsvToHex(instance.hue, instance.saturation, instance.brightness));
+        });
+        brightnessControl.input.addEventListener("input", (event) => {
+            event.stopPropagation();
+            instance.brightness = clampPercent(Number(brightnessControl.input.value));
             applyColor(instance, hsvToHex(instance.hue, instance.saturation, instance.brightness));
         });
         hexInput.addEventListener("input", (event) => {
@@ -367,7 +383,6 @@ function enhanceColorInputs() {
                 updateColorFromPointer(event, instance);
             }
         });
-        plane.addEventListener("keydown", (event) => handleColorPlaneKeydown(event, instance));
         doneButton.addEventListener("click", () => closeColorPicker(instance, true));
         popover.addEventListener("keydown", (event) => {
             if (event.key === "Escape") {
@@ -389,6 +404,23 @@ function enhanceColorInputs() {
     });
 }
 
+function createColorChannelControl(ariaLabel, visibleLabel) {
+    const label = document.createElement("label");
+    const labelText = document.createElement("span");
+    const input = document.createElement("input");
+    const output = document.createElement("output");
+    label.className = "generator-color-channel";
+    labelText.textContent = visibleLabel;
+    input.type = "range";
+    input.min = "0";
+    input.max = "100";
+    input.step = "1";
+    input.setAttribute("aria-label", ariaLabel);
+    output.textContent = "0%";
+    label.append(labelText, input, output);
+    return { label, input, output };
+}
+
 function toggleColorPicker(instance) {
     if (instance.popover.hidden) {
         openColorPicker(instance);
@@ -403,7 +435,7 @@ function openColorPicker(instance) {
     instance.popover.hidden = false;
     instance.wrapper.classList.add("is-open");
     instance.trigger.setAttribute("aria-expanded", "true");
-    window.requestAnimationFrame(() => instance.plane.focus());
+    window.requestAnimationFrame(() => instance.hueInput.focus());
 }
 
 function closeColorPicker(instance, restoreFocus = false) {
@@ -441,11 +473,13 @@ function syncColorPicker(instance) {
     instance.currentSwatch.style.background = color;
     instance.hexInput.value = color;
     instance.hueInput.value = String(Math.round(instance.hue));
+    instance.saturationInput.value = String(Math.round(instance.saturation));
+    instance.saturationOutput.textContent = `${Math.round(instance.saturation)}%`;
+    instance.brightnessInput.value = String(Math.round(instance.brightness));
+    instance.brightnessOutput.textContent = `${Math.round(instance.brightness)}%`;
     instance.plane.style.setProperty("--picker-hue", `hsl(${instance.hue} 100% 50%)`);
     instance.planeThumb.style.left = `${instance.saturation}%`;
     instance.planeThumb.style.top = `${100 - instance.brightness}%`;
-    instance.plane.setAttribute("aria-valuenow", String(Math.round(instance.saturation)));
-    instance.plane.setAttribute("aria-valuetext", `${color}, ${Math.round(instance.saturation)}% saturation, ${Math.round(instance.brightness)}% brightness`);
     instance.trigger.setAttribute("aria-label", `${instance.labelText}: ${color}`);
     for (const preset of instance.presets.children) {
         preset.setAttribute("aria-pressed", String(preset.dataset.color === color));
@@ -462,20 +496,6 @@ function updateColorFromPointer(event, instance) {
     const bounds = instance.plane.getBoundingClientRect();
     instance.saturation = clampPercent(((event.clientX - bounds.left) / bounds.width) * 100);
     instance.brightness = clampPercent((1 - ((event.clientY - bounds.top) / bounds.height)) * 100);
-    applyColor(instance, hsvToHex(instance.hue, instance.saturation, instance.brightness));
-}
-
-function handleColorPlaneKeydown(event, instance) {
-    const step = event.shiftKey ? 10 : 2;
-    if (event.key === "ArrowLeft") instance.saturation -= step;
-    else if (event.key === "ArrowRight") instance.saturation += step;
-    else if (event.key === "ArrowUp") instance.brightness += step;
-    else if (event.key === "ArrowDown") instance.brightness -= step;
-    else return;
-
-    event.preventDefault();
-    instance.saturation = clampPercent(instance.saturation);
-    instance.brightness = clampPercent(instance.brightness);
     applyColor(instance, hsvToHex(instance.hue, instance.saturation, instance.brightness));
 }
 

@@ -101,6 +101,22 @@ test("QR generator controls work together in a real browser", { timeout: 30_000 
             }))()`);
             assert.equal(pointerState.events.length, 1, JSON.stringify({ bounds, pointerState }));
             assert.notEqual(pointerState.color, "#000000");
+            assert.deepEqual(await client.evaluate(`(() => {
+                const popover = document.querySelector("#foreground-color-popover");
+                const sliders = [...popover.querySelectorAll(".generator-color-channel input")];
+                const plane = popover.querySelector(".generator-color-plane");
+                return {
+                    labels: sliders.map((slider) => slider.getAttribute("aria-label")),
+                    values: sliders.map((slider) => Number(slider.value)),
+                    planeHidden: plane.getAttribute("aria-hidden"),
+                    planeRole: plane.getAttribute("role"),
+                };
+            })()`), {
+                labels: ["QR color saturation", "QR color brightness"],
+                values: [75, 75],
+                planeHidden: "true",
+                planeRole: null,
+            });
         });
 
         await context.test("exports stay disabled until the rendered QR is verified", async () => {
