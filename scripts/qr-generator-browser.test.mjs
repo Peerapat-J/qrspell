@@ -147,6 +147,44 @@ test("QR generator controls work together in a real browser", { timeout: 30_000 
                 downloadDisabled: true,
             });
         });
+
+        await context.test("oversized center images are rejected before file reading", async () => {
+            await navigate(client, `${site.origin}/qr-code-generator/?test=oversized-image`);
+            await client.evaluate(`(() => {
+                const content = document.querySelector("#qr-content");
+                content.value = "oversized image test";
+                content.dispatchEvent(new Event("input", { bubbles: true }));
+            })()`);
+            await waitFor(client, `document.querySelector("#verification-status").dataset.state === "verified"`);
+            await client.evaluate(`(() => {
+                const centerType = document.querySelector("#center-type");
+                centerType.value = "image";
+                centerType.dispatchEvent(new Event("change", { bubbles: true }));
+                const transfer = new DataTransfer();
+                transfer.items.add(new File(
+                    [new Uint8Array((5 * 1024 * 1024) + 1)],
+                    "too-large.png",
+                    { type: "image/png" },
+                ));
+                const input = document.querySelector("#center-image");
+                input.files = transfer.files;
+                input.dispatchEvent(new Event("change", { bubbles: true }));
+            })()`);
+            await waitFor(client, `document.querySelector("#center-image-error").textContent.includes("no larger than 5 MB")`);
+            assert.deepEqual(await client.evaluate(`(() => ({
+                error: document.querySelector("#center-image-error").textContent,
+                fileCount: document.querySelector("#center-image").files.length,
+                previewCleared: document.querySelector("#qr-preview-empty").hidden === false,
+                copyDisabled: document.querySelector("#copy-qr").disabled,
+                downloadDisabled: document.querySelector("#download-qr").disabled,
+            }))()`), {
+                error: "Choose an image no larger than 5 MB.",
+                fileCount: 0,
+                previewCleared: true,
+                copyDisabled: true,
+                downloadDisabled: true,
+            });
+        });
     } finally {
         client.close();
         browser.process.kill("SIGTERM");
