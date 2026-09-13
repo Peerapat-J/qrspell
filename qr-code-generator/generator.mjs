@@ -422,7 +422,9 @@ function applyColor(instance, value) {
 function syncColorPicker(instance) {
     const color = instance.input.value.toUpperCase();
     const hsv = hexToHsv(color);
-    instance.hue = hsv.hue;
+    if (hsv.saturation > 0) {
+        instance.hue = hsv.hue;
+    }
     instance.saturation = hsv.saturation;
     instance.brightness = hsv.brightness;
     instance.swatch.style.background = color;
@@ -807,6 +809,9 @@ function resetGenerator() {
     elements.centerType.value = defaultState.centerType;
     elements.centerSize.value = defaultState.centerSize;
     syncAllCustomSelects();
+    for (const instance of customColorInstances) {
+        instance.hue = 0;
+    }
     centerImageDataUrl = "";
     elements.centerImageName.textContent = "No image selected";
     updateCenterFields();
