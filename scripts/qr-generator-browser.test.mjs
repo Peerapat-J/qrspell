@@ -193,6 +193,26 @@ test("QR generator controls work together in a real browser", { timeout: 30_000 
             ]);
         });
 
+        await context.test("two-emoji center text renders and remains scannable", async () => {
+            await navigate(client, `${site.origin}/qr-code-generator/?test=two-emoji-center`);
+            await client.evaluate(`(() => {
+                const content = document.querySelector("#qr-content");
+                content.value = "two emoji center test";
+                content.dispatchEvent(new Event("input", { bubbles: true }));
+                const reliability = document.querySelector("#reliability");
+                reliability.value = "H";
+                reliability.dispatchEvent(new Event("change", { bubbles: true }));
+                const centerType = document.querySelector("#center-type");
+                centerType.value = "text";
+                centerType.dispatchEvent(new Event("change", { bubbles: true }));
+                const centerText = document.querySelector("#center-text");
+                centerText.value = "🐻🐼";
+                centerText.dispatchEvent(new Event("input", { bubbles: true }));
+            })()`);
+            await waitFor(client, `document.querySelector("#verification-status").dataset.state === "verified"`);
+            assert.equal(await client.evaluate(`document.querySelector("#copy-qr").disabled`), false);
+        });
+
         await context.test("Copy PNG uses the already verified blob", async () => {
             await navigate(client, `${site.origin}/qr-code-generator/?test=copy-verified-blob`);
             await client.evaluate(`(() => {

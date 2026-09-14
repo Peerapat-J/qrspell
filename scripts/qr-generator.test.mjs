@@ -132,6 +132,17 @@ test("keeps a single emoji large and makes longer text badges compact", () => {
     assert.match(text, /font-size="76"/u);
 });
 
+test("sizes center badges for full-width glyphs without excessive padding", () => {
+    const emoji = decodeURIComponent(createTextBadgeDataUrl("🐻🐼", "#000000", "#FFFFFF").split(",", 2)[1]);
+    assert.match(emoji, /viewBox="0 0 384 256"/u);
+
+    const cjk = decodeURIComponent(createTextBadgeDataUrl("漢字漢字漢字", "#000000", "#FFFFFF").split(",", 2)[1]);
+    assert.match(cjk, /viewBox="0 0 488 168"/u);
+
+    const latin = decodeURIComponent(createTextBadgeDataUrl("QRSpell", "#000000", "#FFFFFF").split(",", 2)[1]);
+    assert.match(latin, /viewBox="0 0 294 168"/u);
+});
+
 test("keeps complete grapheme clusters in center text", () => {
     const family = "👨‍👩‍👧‍👦";
     assert.deepEqual(splitGraphemes(family), [family]);

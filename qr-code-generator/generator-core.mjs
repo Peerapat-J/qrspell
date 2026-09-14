@@ -220,9 +220,9 @@ export function createTextBadgeDataUrl(text, foreground, background) {
     const surface = normalizeHexColor(background, "#FFFFFF");
     const fontSize = symbolCount === 1 ? 224 : symbolCount === 2 ? 176 : symbolCount <= 4 ? 96 : 76;
     const height = symbolCount <= 2 ? 256 : 168;
-    const width = symbolCount <= 2
-        ? 256
-        : Math.round(clamp((fontSize * symbolCount * 0.72) + 48, 256, 520));
+    const textWidth = splitGraphemes(content)
+        .reduce((total, grapheme) => total + graphemeWidthUnits(grapheme), 0) * fontSize;
+    const width = Math.round(clamp(textWidth + 32, symbolCount === 1 ? 256 : 224, 520));
     const cornerRadius = symbolCount <= 2 ? 48 : 34;
     const textY = Math.round((height / 2) + (fontSize * 0.035));
     const svg = [
@@ -266,6 +266,19 @@ function escapeXml(value) {
         .replaceAll(">", "&gt;")
         .replaceAll('"', "&quot;")
         .replaceAll("'", "&apos;");
+}
+
+function graphemeWidthUnits(grapheme) {
+    if (/\p{Emoji_Presentation}|\p{Extended_Pictographic}/u.test(grapheme)
+        || /[\u1100-\u115F\u2E80-\uA4CF\uAC00-\uD7A3\uF900-\uFAFF\uFE10-\uFE6F\uFF01-\uFF60\uFFE0-\uFFE6]/u
+            .test(grapheme)) {
+        return 1;
+    }
+    if (/^[\s]$/u.test(grapheme)) return 0.35;
+    if (/^[ilI1.,'|!]$/u.test(grapheme)) return 0.35;
+    if (/^[MW@#%&]$/u.test(grapheme)) return 0.9;
+    if (/^[\x00-\x7F]$/u.test(grapheme)) return 0.62;
+    return 0.9;
 }
 
 function readJpegDimensions(data) {
