@@ -918,32 +918,47 @@ async function copyPng() {
         return;
     }
 
+    const activeRenderID = renderID;
+    const blob = currentVerifiedPngBlob;
     try {
         if (!navigator.clipboard?.write || !window.ClipboardItem) {
             throw new Error("Copying images is not supported in this browser. Download the PNG instead.");
         }
-        await navigator.clipboard.write([new ClipboardItem({ "image/png": currentVerifiedPngBlob })]);
+        await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
+        if (activeRenderID !== renderID || blob !== currentVerifiedPngBlob) {
+            return;
+        }
         setStatus("verified", "PNG copied");
     } catch (error) {
+        if (activeRenderID !== renderID || blob !== currentVerifiedPngBlob) {
+            return;
+        }
         setStatus("error", readableError(error));
     }
 }
 
 async function downloadPng() {
-    if (!currentQr || !currentQrVerified) {
+    if (!currentQr || !currentQrVerified || !currentVerifiedPngBlob) {
         return;
     }
 
+    const activeRenderID = renderID;
+    const blob = currentVerifiedPngBlob;
     try {
-        const blob = await currentQr.getRawData("png");
         const url = URL.createObjectURL(blob);
         const link = document.createElement("a");
         link.href = url;
         link.download = "QRSpell-QRCode.png";
         link.click();
         window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+        if (activeRenderID !== renderID || blob !== currentVerifiedPngBlob) {
+            return;
+        }
         setStatus("verified", "PNG downloaded");
     } catch (error) {
+        if (activeRenderID !== renderID || blob !== currentVerifiedPngBlob) {
+            return;
+        }
         setStatus("error", readableError(error));
     }
 }

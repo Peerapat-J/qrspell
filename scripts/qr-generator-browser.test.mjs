@@ -219,6 +219,54 @@ test("QR generator controls work together in a real browser", { timeout: 30_000 
             await waitFor(client, `document.querySelector("#verification-status").textContent.includes("PNG copied")`);
         });
 
+        await context.test("stale clipboard results do not replace the current QR status", async () => {
+            await navigate(client, `${site.origin}/qr-code-generator/?test=stale-copy`);
+            await client.evaluate(`(() => {
+                const content = document.querySelector("#qr-content");
+                content.value = "stale copy test";
+                content.dispatchEvent(new Event("input", { bubbles: true }));
+            })()`);
+            await waitFor(client, `document.querySelector("#verification-status").dataset.state === "verified"`);
+            await client.evaluate(`(() => {
+                window.__qrspellClipboardPromise = new Promise((resolvePromise, rejectPromise) => {
+                    window.__qrspellResolveClipboard = resolvePromise;
+                    window.__qrspellRejectClipboard = rejectPromise;
+                });
+                Object.defineProperty(navigator, "clipboard", {
+                    configurable: true,
+                    value: { write: () => window.__qrspellClipboardPromise },
+                });
+                document.querySelector("#copy-qr").click();
+                document.querySelector("#reset-generator").click();
+                window.__qrspellResolveClipboard();
+            })()`);
+            await client.evaluate(`Promise.resolve()`);
+            assert.deepEqual(await client.evaluate(`(() => ({
+                state: document.querySelector("#verification-status").dataset.state,
+                message: document.querySelector("#verification-status span:last-child").textContent,
+            }))()`), {
+                state: "idle",
+                message: "Enter content to create a QR code",
+            });
+        });
+
+        await context.test("Download PNG uses the cached verified blob", async () => {
+            await navigate(client, `${site.origin}/qr-code-generator/?test=download-verified-blob`);
+            await client.evaluate(`(() => {
+                const content = document.querySelector("#qr-content");
+                content.value = "download verified blob test";
+                content.dispatchEvent(new Event("input", { bubbles: true }));
+            })()`);
+            await waitFor(client, `document.querySelector("#verification-status").dataset.state === "verified"`);
+            await client.evaluate(`(() => {
+                window.QRCodeStyling.prototype.getRawData = () => {
+                    throw new Error("Download should use the verified blob");
+                };
+                document.querySelector("#download-qr").click();
+            })()`);
+            await waitFor(client, `document.querySelector("#verification-status").textContent.includes("PNG downloaded")`);
+        });
+
         await context.test("oversized center images are rejected before file reading", async () => {
             await navigate(client, `${site.origin}/qr-code-generator/?test=oversized-image`);
             await client.evaluate(`(() => {
