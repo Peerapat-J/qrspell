@@ -86,6 +86,11 @@ test("QR generator runtime dependencies are bundled locally", () => {
     assert.match(stylingBundle, /t\.put\(26,8\)/u);
     assert.match(stylingBundle, /7==s\.getMode\(\)/u);
     assert.doesNotMatch(stylingBundle, /e\.push\(255&r\)/u);
+    const stylingReadme = read("assets/vendor/qr-code-styling/README.md");
+    const documentedChecksum = stylingReadme.match(/Vendored bundle SHA-256: `([a-f0-9]{64})`/u)?.[1];
+    const actualChecksum = createHash("sha256").update(stylingBundle).digest("hex");
+    assert.equal(documentedChecksum, actualChecksum);
+    assert.match(stylingReadme, /UTF-8 ECI assignment 26 in both\s+encoding and capacity calculations/u);
     assert.ok(readFileSync(join(root, "assets/vendor/jsqr/jsQR.js")).length > 250_000);
 });
 
