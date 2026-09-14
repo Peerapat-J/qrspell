@@ -1,13 +1,13 @@
 import {
     buildQrOptions,
     createTextBadgeDataUrl,
-    hasExpectedImageSignature,
+    detectSupportedImageType,
     hexToHsv,
     hsvToHex,
     quietZoneMargin,
     readabilityWarnings,
     truncateGraphemes,
-} from "./generator-core.mjs?v=20260914a";
+} from "./generator-core.mjs?v=20260914b";
 
 const elements = {
     form: document.querySelector(".generator-controls"),
@@ -60,7 +60,6 @@ let centerImageLoadID = 0;
 let renderTimer;
 let renderID = 0;
 const maximumCenterImageBytes = 5 * 1024 * 1024;
-const acceptedCenterImageTypes = new Set(["image/png", "image/jpeg", "image/webp"]);
 const customSelectInstances = [];
 const customColorInstances = [];
 
@@ -775,11 +774,6 @@ async function loadCenterImage() {
         return;
     }
 
-    if (!acceptedCenterImageTypes.has(file.type)) {
-        rejectCenterImage("Choose a PNG, JPEG, or WebP image.");
-        return;
-    }
-
     if (file.size > maximumCenterImageBytes) {
         rejectCenterImage("Choose an image no larger than 5 MB.");
         return;
@@ -792,14 +786,18 @@ async function loadCenterImage() {
         if (!isCurrentCenterImageLoad(activeLoadID, file)) {
             return;
         }
-        if (!hasExpectedImageSignature(file.type, header)) {
-            throw new Error("The file contents do not match its image format.");
+        const detectedType = detectSupportedImageType(header);
+        if (!detectedType) {
+            throw new Error("The file is not a supported image format.");
         }
-        await decodeCenterImageFile(file);
+        const normalizedImage = file.type === detectedType
+            ? file
+            : new Blob([file], { type: detectedType });
+        await decodeCenterImageFile(normalizedImage);
         if (!isCurrentCenterImageLoad(activeLoadID, file)) {
             return;
         }
-        const dataUrl = await readFileAsDataUrl(file);
+        const dataUrl = await readFileAsDataUrl(normalizedImage);
         if (!isCurrentCenterImageLoad(activeLoadID, file)) {
             return;
         }

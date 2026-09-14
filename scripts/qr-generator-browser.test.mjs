@@ -312,7 +312,7 @@ test("QR generator controls work together in a real browser", { timeout: 30_000 
             });
         });
 
-        await context.test("valid local center images still render and verify", async () => {
+        await context.test("valid center images without MIME metadata still render and verify", async () => {
             await navigate(client, `${site.origin}/qr-code-generator/?test=valid-image`);
             await client.evaluate(`(() => {
                 const content = document.querySelector("#qr-content");
@@ -329,7 +329,7 @@ test("QR generator controls work together in a real browser", { timeout: 30_000 
                     (character) => character.charCodeAt(0),
                 );
                 const transfer = new DataTransfer();
-                transfer.items.add(new File([bytes], "logo.png", { type: "image/png" }));
+                transfer.items.add(new File([bytes], "logo.png"));
                 const input = document.querySelector("#center-image");
                 input.files = transfer.files;
                 input.dispatchEvent(new Event("change", { bubbles: true }));

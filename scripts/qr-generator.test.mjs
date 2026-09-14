@@ -5,6 +5,7 @@ import {
     buildQrOptions,
     contrastRatio,
     createTextBadgeDataUrl,
+    detectSupportedImageType,
     hasExpectedImageSignature,
     hexToHsv,
     hsvToHex,
@@ -41,6 +42,10 @@ test("accepts only image bytes that match their declared raster format", () => {
     assert.equal(hasExpectedImageSignature("image/webp", webp), true);
     assert.equal(hasExpectedImageSignature("image/png", jpeg), false);
     assert.equal(hasExpectedImageSignature("image/svg+xml", new Uint8Array()), false);
+    assert.equal(detectSupportedImageType(png), "image/png");
+    assert.equal(detectSupportedImageType(jpeg), "image/jpeg");
+    assert.equal(detectSupportedImageType(webp), "image/webp");
+    assert.equal(detectSupportedImageType(new Uint8Array([1, 2, 3, 4])), "");
 });
 
 test("reports contrast, inversion, density, and center-content risks", () => {
