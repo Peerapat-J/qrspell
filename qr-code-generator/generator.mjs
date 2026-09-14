@@ -609,6 +609,11 @@ function scheduleRender() {
     renderID += 1;
     disableExport();
 
+    if (isCenterImageLoadPending()) {
+        setStatus("checking", "Checking center image…");
+        return;
+    }
+
     if (!elements.content.value.trim()) {
         renderEmptyState();
         return;
@@ -826,6 +831,12 @@ function isCurrentCenterImageLoad(loadID, file) {
     return loadID === centerImageLoadID
         && elements.centerType.value === "image"
         && elements.centerImage.files[0] === file;
+}
+
+function isCenterImageLoadPending() {
+    return elements.centerType.value === "image"
+        && elements.centerImage.files.length > 0
+        && !centerImageDataUrl;
 }
 
 async function decodeCenterImageFile(file) {

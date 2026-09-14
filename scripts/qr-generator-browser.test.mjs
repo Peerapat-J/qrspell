@@ -451,6 +451,67 @@ test("QR generator controls work together in a real browser", { timeout: 30_000 
             });
         });
 
+        await context.test("rendering stays blocked while a selected center image is loading", async () => {
+            await navigate(client, `${site.origin}/qr-code-generator/?test=pending-center-image`);
+            await client.evaluate(`(() => {
+                const content = document.querySelector("#qr-content");
+                content.value = "pending center image test";
+                content.dispatchEvent(new Event("input", { bubbles: true }));
+            })()`);
+            await waitFor(client, `document.querySelector("#verification-status").dataset.state === "verified"`);
+            await client.evaluate(`(() => {
+                const bytes = Uint8Array.from(
+                    atob("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="),
+                    (character) => character.charCodeAt(0),
+                );
+                const originalArrayBuffer = Blob.prototype.arrayBuffer;
+                Blob.prototype.arrayBuffer = function () {
+                    if (this instanceof File && this.name === "slow-logo.png") {
+                        return new Promise((resolvePromise) => {
+                            window.__qrspellResolveCenterImage = () => resolvePromise(bytes.buffer);
+                        });
+                    }
+                    return originalArrayBuffer.call(this);
+                };
+                const centerType = document.querySelector("#center-type");
+                centerType.value = "image";
+                centerType.dispatchEvent(new Event("change", { bubbles: true }));
+                const transfer = new DataTransfer();
+                transfer.items.add(new File([bytes], "slow-logo.png", { type: "image/png" }));
+                const input = document.querySelector("#center-image");
+                input.files = transfer.files;
+                input.dispatchEvent(new Event("change", { bubbles: true }));
+                const centerSize = document.querySelector("#center-size");
+                centerSize.value = "0.3";
+                centerSize.dispatchEvent(new Event("input", { bubbles: true }));
+            })()`);
+            await client.evaluate(`new Promise((resolvePromise) => setTimeout(resolvePromise, 300))`);
+            assert.deepEqual(await client.evaluate(`(() => ({
+                state: document.querySelector("#verification-status").dataset.state,
+                message: document.querySelector("#verification-status span:last-child").textContent,
+                previewCleared: document.querySelector("#qr-preview-empty").hidden === false,
+                copyDisabled: document.querySelector("#copy-qr").disabled,
+                downloadDisabled: document.querySelector("#download-qr").disabled,
+            }))()`), {
+                state: "checking",
+                message: "Checking center image…",
+                previewCleared: true,
+                copyDisabled: true,
+                downloadDisabled: true,
+            });
+            await client.evaluate(`window.__qrspellResolveCenterImage()`);
+            await waitFor(client, `document.querySelector("#verification-status").dataset.state === "verified"`);
+            assert.deepEqual(await client.evaluate(`(() => ({
+                imageName: document.querySelector("#center-image-name").textContent,
+                copyDisabled: document.querySelector("#copy-qr").disabled,
+                downloadDisabled: document.querySelector("#download-qr").disabled,
+            }))()`), {
+                imageName: "slow-logo.png",
+                copyDisabled: false,
+                downloadDisabled: false,
+            });
+        });
+
         await context.test("valid center images without MIME metadata still render and verify", async () => {
             await navigate(client, `${site.origin}/qr-code-generator/?test=valid-image`);
             await client.evaluate(`(() => {
