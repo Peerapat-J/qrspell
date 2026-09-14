@@ -88,6 +88,9 @@ function bindControls() {
         }
 
         if (event.target === elements.centerText) {
+            if (event.isComposing) {
+                return;
+            }
             elements.centerText.value = truncateGraphemes(elements.centerText.value, 6);
         }
 
@@ -120,6 +123,11 @@ function bindControls() {
     elements.copyButton.addEventListener("click", copyPng);
     elements.downloadButton.addEventListener("click", downloadPng);
     elements.resetButton.addEventListener("click", resetGenerator);
+    elements.centerText.addEventListener("compositionend", () => {
+        elements.centerText.value = truncateGraphemes(elements.centerText.value, 6);
+        updateCenterFields();
+        scheduleRender();
+    });
 }
 
 function enhanceSelects() {

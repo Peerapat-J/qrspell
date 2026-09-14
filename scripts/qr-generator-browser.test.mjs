@@ -61,6 +61,30 @@ test("QR generator controls work together in a real browser", { timeout: 30_000 
             });
         });
 
+        await context.test("center text truncation waits for IME composition to end", async () => {
+            await navigate(client, `${site.origin}/qr-code-generator/?test=center-text-composition`);
+            const values = await client.evaluate(`(() => {
+                const centerText = document.querySelector("#center-text");
+                centerText.value = "あいうえおかき";
+                centerText.dispatchEvent(new InputEvent("input", {
+                    bubbles: true,
+                    data: "き",
+                    inputType: "insertCompositionText",
+                    isComposing: true,
+                }));
+                const duringComposition = centerText.value;
+                centerText.dispatchEvent(new CompositionEvent("compositionend", {
+                    bubbles: true,
+                    data: centerText.value,
+                }));
+                return { duringComposition, afterComposition: centerText.value };
+            })()`);
+            assert.deepEqual(values, {
+                duringComposition: "あいうえおかき",
+                afterComposition: "あいうえおか",
+            });
+        });
+
         await context.test("hue and pointer input update the custom color picker", async () => {
             await client.evaluate(`document.querySelector("#foreground-color-trigger").click()`);
             await waitFor(client, `!document.querySelector("#foreground-color-popover").hidden`);
