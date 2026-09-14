@@ -198,12 +198,14 @@ test("QR generator controls work together in a real browser", { timeout: 30_000 
             await waitFor(client, `document.querySelector("#verification-status").dataset.state === "error"`);
             assert.deepEqual(await client.evaluate(`(() => ({
                 message: document.querySelector("#verification-status span:last-child").textContent,
+                characterCount: document.querySelector("#character-count").textContent,
                 constructorCalls: window.__qrspellQrConstructorCalls,
                 previewCleared: document.querySelector("#qr-preview-empty").hidden === false,
                 copyDisabled: document.querySelector("#copy-qr").disabled,
                 downloadDisabled: document.querySelector("#download-qr").disabled,
             }))()`), {
                 message: "This content is too long for a QR code. Shorten it and try again.",
+                characterCount: "5,596+ characters",
                 constructorCalls: 0,
                 previewCleared: true,
                 copyDisabled: true,

@@ -65,6 +65,7 @@ const maximumCenterImageBytes = 5 * 1024 * 1024;
 const maximumCenterImageDimension = 4096;
 const maximumCenterImagePixels = 4096 * 4096;
 const centerImageDimensionError = "Choose an image no larger than 4096 × 4096 px (16.8 MP).";
+const maximumDisplayedCharacterCount = 5596;
 const customSelectInstances = [];
 const customColorInstances = [];
 
@@ -1044,7 +1045,14 @@ function updateColorValues() {
 }
 
 function updateCharacterCount() {
-    const count = [...elements.content.value].length;
+    let count = 0;
+    for (const _codePoint of elements.content.value) {
+        if (count === maximumDisplayedCharacterCount) {
+            elements.characterCount.textContent = `${maximumDisplayedCharacterCount.toLocaleString()}+ characters`;
+            return;
+        }
+        count += 1;
+    }
     elements.characterCount.textContent = `${count.toLocaleString()} character${count === 1 ? "" : "s"}`;
 }
 
