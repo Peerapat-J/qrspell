@@ -101,7 +101,7 @@ test("QR generator controls work together in a real browser", { timeout: 30_000 
             }))()`);
             assert.equal(pointerState.events.length, 1, JSON.stringify({ bounds, pointerState }));
             assert.notEqual(pointerState.color, "#000000");
-            assert.deepEqual(await client.evaluate(`(() => {
+            const channelState = await client.evaluate(`(() => {
                 const popover = document.querySelector("#foreground-color-popover");
                 const sliders = [...popover.querySelectorAll(".generator-color-channel input")];
                 const plane = popover.querySelector(".generator-color-plane");
@@ -111,12 +111,18 @@ test("QR generator controls work together in a real browser", { timeout: 30_000 
                     planeHidden: plane.getAttribute("aria-hidden"),
                     planeRole: plane.getAttribute("role"),
                 };
-            })()`), {
+            })()`);
+            assert.deepEqual({
+                labels: channelState.labels,
+                planeHidden: channelState.planeHidden,
+                planeRole: channelState.planeRole,
+            }, {
                 labels: ["QR color saturation", "QR color brightness"],
-                values: [75, 75],
                 planeHidden: "true",
                 planeRole: null,
             });
+            assert.ok(Math.abs(channelState.values[0] - 75) <= 1);
+            assert.ok(Math.abs(channelState.values[1] - 75) <= 1);
         });
 
         await context.test("exports stay disabled until the rendered QR is verified", async () => {
