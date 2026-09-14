@@ -19,12 +19,15 @@ const mimeTypes = new Map([
 ]);
 
 test("QR generator controls work together in a real browser", { timeout: 30_000 }, async (context) => {
-    const site = await startStaticServer();
-    const browser = await startBrowser();
-    const target = await createTarget(browser.debugOrigin, `${site.origin}/qr-code-generator/`);
-    const client = await CdpClient.connect(target.webSocketDebuggerUrl);
+    let site;
+    let browser;
+    let client;
 
     try {
+        site = await startStaticServer();
+        browser = await startBrowser();
+        const target = await createTarget(browser.debugOrigin, `${site.origin}/qr-code-generator/`);
+        client = await CdpClient.connect(target.webSocketDebuggerUrl);
         await client.send("Page.enable");
         await client.send("Runtime.enable");
         await waitFor(client, `document.readyState === "complete" && Boolean(document.querySelector("#module-shape-trigger"))`);
@@ -292,17 +295,36 @@ test("QR generator controls work together in a real browser", { timeout: 30_000 
             });
         });
     } finally {
-        client.close();
-        browser.process.kill("SIGTERM");
-        await waitForProcessExit(browser.process);
-        await closeServer(site.server);
-        rmSync(browser.profile, {
-            recursive: true,
-            force: true,
-            maxRetries: 10,
-            retryDelay: 100,
-        });
+        await cleanupTestResources({ client, browser, site });
     }
+});
+
+test("browser test cleanup handles partially initialized resources", async () => {
+    const profile = mkdtempSync(`${tmpdir()}/qrspell-browser-cleanup-test-`);
+    const cleanupEvents = [];
+    const browserProcess = {
+        exitCode: null,
+        signalCode: null,
+        kill(signal) {
+            cleanupEvents.push(signal);
+            this.signalCode = signal;
+            return true;
+        },
+    };
+    const client = { close: () => cleanupEvents.push("client") };
+    const site = {
+        server: {
+            close(completion) {
+                cleanupEvents.push("server");
+                completion();
+            },
+        },
+    };
+
+    await cleanupTestResources({ client, browser: { process: browserProcess, profile }, site });
+    assert.deepEqual(cleanupEvents, ["client", "SIGTERM", "server"]);
+    assert.equal(existsSync(profile), false);
+    await cleanupTestResources({});
 });
 
 async function exportState(client) {
@@ -377,23 +399,68 @@ async function closeServer(server) {
     await new Promise((resolvePromise) => server.close(resolvePromise));
 }
 
-async function waitForProcessExit(child) {
-    if (child.exitCode !== null) {
-        return;
+async function cleanupTestResources({ client, browser, site }) {
+    const cleanupErrors = [];
+    client?.close();
+    if (browser) {
+        try {
+            await stopBrowser(browser);
+        } catch (error) {
+            cleanupErrors.push(error);
+        }
     }
-    await new Promise((resolvePromise) => {
-        const timeout = setTimeout(resolvePromise, 2_000);
-        child.once("exit", () => {
+    if (site) {
+        try {
+            await closeServer(site.server);
+        } catch (error) {
+            cleanupErrors.push(error);
+        }
+    }
+    if (cleanupErrors.length > 0) {
+        throw new AggregateError(cleanupErrors, "Browser test cleanup failed.");
+    }
+}
+
+async function stopBrowser(browser) {
+    if (!hasProcessExited(browser.process)) {
+        browser.process.kill("SIGTERM");
+        if (!await waitForProcessExit(browser.process)) {
+            browser.process.kill("SIGKILL");
+            await waitForProcessExit(browser.process);
+        }
+    }
+    rmSync(browser.profile, {
+        recursive: true,
+        force: true,
+        maxRetries: 10,
+        retryDelay: 100,
+    });
+}
+
+function hasProcessExited(child) {
+    return child.exitCode !== null || child.signalCode !== null;
+}
+
+async function waitForProcessExit(child, timeoutMilliseconds = 2_000) {
+    if (hasProcessExited(child)) {
+        return true;
+    }
+    return new Promise((resolvePromise) => {
+        const finish = (didExit) => {
             clearTimeout(timeout);
-            resolvePromise();
-        });
+            child.removeListener("exit", handleExit);
+            resolvePromise(didExit);
+        };
+        const handleExit = () => finish(true);
+        const timeout = setTimeout(() => finish(false), timeoutMilliseconds);
+        child.once("exit", handleExit);
     });
 }
 
 async function startBrowser() {
     const executable = findBrowserExecutable();
     const profile = mkdtempSync(`${tmpdir()}/qrspell-browser-test-`);
-    const process = spawn(executable, [
+    const browserProcess = spawn(executable, [
         "--headless=new",
         "--no-sandbox",
         "--disable-gpu",
@@ -408,22 +475,34 @@ async function startBrowser() {
         "about:blank",
     ], { stdio: ["ignore", "ignore", "pipe"] });
 
-    const websocketUrl = await new Promise((resolvePromise, reject) => {
-        const timeout = setTimeout(() => reject(new Error("Chrome did not expose a debugging endpoint.")), 10_000);
-        process.once("error", (error) => {
-            clearTimeout(timeout);
-            reject(error);
-        });
-        process.stderr.on("data", (chunk) => {
-            const match = String(chunk).match(/DevTools listening on (ws:\/\/\S+)/u);
-            if (match) {
+    try {
+        const websocketUrl = await new Promise((resolvePromise, reject) => {
+            const timeout = setTimeout(() => reject(new Error("Chrome did not expose a debugging endpoint.")), 10_000);
+            browserProcess.once("error", (error) => {
                 clearTimeout(timeout);
-                resolvePromise(match[1]);
-            }
+                reject(error);
+            });
+            browserProcess.stderr.on("data", (chunk) => {
+                const match = String(chunk).match(/DevTools listening on (ws:\/\/\S+)/u);
+                if (match) {
+                    clearTimeout(timeout);
+                    resolvePromise(match[1]);
+                }
+            });
         });
-    });
-    const endpoint = new URL(websocketUrl);
-    return { process, profile, debugOrigin: `http://${endpoint.host}` };
+        const endpoint = new URL(websocketUrl);
+        return { process: browserProcess, profile, debugOrigin: `http://${endpoint.host}` };
+    } catch (error) {
+        try {
+            await stopBrowser({ process: browserProcess, profile });
+        } catch (cleanupError) {
+            throw new AggregateError(
+                [error, cleanupError],
+                "Chrome setup failed and its temporary resources could not be cleaned up.",
+            );
+        }
+        throw error;
+    }
 }
 
 function findBrowserExecutable() {
