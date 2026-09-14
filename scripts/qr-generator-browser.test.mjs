@@ -259,6 +259,59 @@ test("QR generator controls work together in a real browser", { timeout: 30_000 
             });
         });
 
+        await context.test("stale image failures do not replace a newer center mode", async () => {
+            await navigate(client, `${site.origin}/qr-code-generator/?test=stale-image`);
+            await client.evaluate(`(() => {
+                const content = document.querySelector("#qr-content");
+                content.value = "stale image test";
+                content.dispatchEvent(new Event("input", { bubbles: true }));
+            })()`);
+            await waitFor(client, `document.querySelector("#verification-status").dataset.state === "verified"`);
+            await client.evaluate(`(() => {
+                const originalArrayBuffer = Blob.prototype.arrayBuffer;
+                Blob.prototype.arrayBuffer = function () {
+                    if (this.size === 4) {
+                        return new Promise((resolvePromise, reject) => {
+                            setTimeout(() => reject(new Error("delayed image failure")), 200);
+                        });
+                    }
+                    return originalArrayBuffer.call(this);
+                };
+                const centerType = document.querySelector("#center-type");
+                centerType.value = "image";
+                centerType.dispatchEvent(new Event("change", { bubbles: true }));
+                const transfer = new DataTransfer();
+                transfer.items.add(new File(
+                    [new Uint8Array([1, 2, 3, 4])],
+                    "slow-corrupt.png",
+                    { type: "image/png" },
+                ));
+                const input = document.querySelector("#center-image");
+                input.files = transfer.files;
+                input.dispatchEvent(new Event("change", { bubbles: true }));
+                centerType.value = "text";
+                centerType.dispatchEvent(new Event("change", { bubbles: true }));
+                const centerText = document.querySelector("#center-text");
+                centerText.value = "QR";
+                centerText.dispatchEvent(new Event("input", { bubbles: true }));
+            })()`);
+            await waitFor(client, `document.querySelector("#verification-status").dataset.state === "verified"`);
+            await client.evaluate(`new Promise((resolvePromise) => setTimeout(resolvePromise, 300))`);
+            assert.deepEqual(await client.evaluate(`(() => ({
+                centerType: document.querySelector("#center-type").value,
+                errorHidden: document.querySelector("#center-image-error").hidden,
+                status: document.querySelector("#verification-status").dataset.state,
+                previewVisible: document.querySelector("#qr-preview").children.length > 0,
+                copyDisabled: document.querySelector("#copy-qr").disabled,
+            }))()`), {
+                centerType: "text",
+                errorHidden: true,
+                status: "verified",
+                previewVisible: true,
+                copyDisabled: false,
+            });
+        });
+
         await context.test("valid local center images still render and verify", async () => {
             await navigate(client, `${site.origin}/qr-code-generator/?test=valid-image`);
             await client.evaluate(`(() => {

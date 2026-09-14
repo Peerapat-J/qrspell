@@ -99,6 +99,16 @@ function bindControls() {
             return;
         }
 
+        if (event.target === elements.centerType) {
+            if (elements.centerType.value !== "image") {
+                centerImageLoadID += 1;
+                clearCenterImageError();
+            } else if (elements.centerImage.files.length > 0 && !centerImageDataUrl) {
+                loadCenterImage();
+                return;
+            }
+        }
+
         updateCenterFields();
         scheduleRender();
     });
@@ -779,25 +789,34 @@ async function loadCenterImage() {
     setStatus("checking", "Checking center image…");
     try {
         const header = new Uint8Array(await file.slice(0, 12).arrayBuffer());
+        if (!isCurrentCenterImageLoad(activeLoadID, file)) {
+            return;
+        }
         if (!hasExpectedImageSignature(file.type, header)) {
             throw new Error("The file contents do not match its image format.");
         }
         await decodeCenterImageFile(file);
-        if (activeLoadID !== centerImageLoadID) {
+        if (!isCurrentCenterImageLoad(activeLoadID, file)) {
             return;
         }
         const dataUrl = await readFileAsDataUrl(file);
-        if (activeLoadID !== centerImageLoadID) {
+        if (!isCurrentCenterImageLoad(activeLoadID, file)) {
             return;
         }
         centerImageDataUrl = dataUrl;
         scheduleRender();
     } catch {
-        if (activeLoadID !== centerImageLoadID) {
+        if (!isCurrentCenterImageLoad(activeLoadID, file)) {
             return;
         }
         rejectCenterImage("The selected image could not be decoded. Choose a valid PNG, JPEG, or WebP file.");
     }
+}
+
+function isCurrentCenterImageLoad(loadID, file) {
+    return loadID === centerImageLoadID
+        && elements.centerType.value === "image"
+        && elements.centerImage.files[0] === file;
 }
 
 async function decodeCenterImageFile(file) {
