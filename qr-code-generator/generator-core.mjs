@@ -2,10 +2,10 @@ const reliabilityLevels = new Set(["M", "Q", "H"]);
 const exportSizes = new Set([256, 512, 1024]);
 const moduleShapes = new Set(["square", "rounded", "dots"]);
 const finderShapes = new Set(["square", "rounded", "circle"]);
-const maximumQrByteCapacities = {
-    M: { ascii: 2331, utf8Eci: 2330 },
-    Q: { ascii: 1663, utf8Eci: 1662 },
-    H: { ascii: 1273, utf8Eci: 1272 },
+const maximumQrCapacities = {
+    M: { numeric: 5596, alphanumeric: 3391, byte: 2331, utf8Eci: 2330 },
+    Q: { numeric: 3993, alphanumeric: 2420, byte: 1663, utf8Eci: 1662 },
+    H: { numeric: 3057, alphanumeric: 1852, byte: 1273, utf8Eci: 1272 },
 };
 
 export function normalizeHexColor(value, fallback = "#000000") {
@@ -141,14 +141,20 @@ export function truncateGraphemes(value, maximum = 6) {
     return splitGraphemes(value).slice(0, limit).join("");
 }
 
-export function fitsQrByteCapacity(value, reliability) {
+export function fitsQrCapacity(value, reliability) {
     const content = String(value ?? "");
     const level = reliabilityLevels.has(reliability) ? reliability : "M";
-    const capacities = maximumQrByteCapacities[level];
-    if (content.length > capacities.ascii) {
+    const capacities = maximumQrCapacities[level];
+    if (/^[0-9]*$/u.test(content)) {
+        return content.length <= capacities.numeric;
+    }
+    if (/^[0-9A-Z $%*+\-./:]*$/u.test(content)) {
+        return content.length <= capacities.alphanumeric;
+    }
+    if (content.length > capacities.byte) {
         return false;
     }
-    const capacity = /[^\x00-\x7F]/u.test(content) ? capacities.utf8Eci : capacities.ascii;
+    const capacity = /[^\x00-\x7F]/u.test(content) ? capacities.utf8Eci : capacities.byte;
     return new TextEncoder().encode(content).length <= capacity;
 }
 

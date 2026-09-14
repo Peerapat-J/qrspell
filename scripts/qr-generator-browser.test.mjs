@@ -187,6 +187,27 @@ test("QR generator controls work together in a real browser", { timeout: 30_000 
             });
         });
 
+        await context.test("numeric content above the byte limit reaches the compact-mode encoder", async () => {
+            await navigate(client, `${site.origin}/qr-code-generator/?test=numeric-capacity`);
+            await client.evaluate(`(() => {
+                const OriginalQRCodeStyling = window.QRCodeStyling;
+                window.__qrspellQrConstructorCalls = 0;
+                window.QRCodeStyling = function (...argumentsList) {
+                    window.__qrspellQrConstructorCalls += 1;
+                    return new OriginalQRCodeStyling(...argumentsList);
+                };
+                window.QRCodeStyling.prototype = OriginalQRCodeStyling.prototype;
+                const content = document.querySelector("#qr-content");
+                content.value = "1".repeat(3000);
+                content.dispatchEvent(new Event("input", { bubbles: true }));
+            })()`);
+            await waitFor(client, `document.querySelector("#verification-status").dataset.state !== "checking"`);
+            assert.ok(await client.evaluate(`window.__qrspellQrConstructorCalls > 0`));
+            assert.equal(await client.evaluate(
+                `document.querySelector("#verification-status span:last-child").textContent.includes("too long")`,
+            ), false);
+        });
+
         await context.test("non-ASCII byte data declares UTF-8 with ECI 26", async () => {
             await navigate(client, `${site.origin}/qr-code-generator/?test=utf8-eci`);
             const decoded = await client.evaluate(`(async () => {

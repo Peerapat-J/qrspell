@@ -2,7 +2,7 @@ import {
     buildQrOptions,
     createTextBadgeDataUrl,
     detectSupportedImageType,
-    fitsQrByteCapacity,
+    fitsQrCapacity,
     hexToHsv,
     hsvToHex,
     quietZoneMargin,
@@ -636,7 +636,7 @@ async function renderQr() {
     }
 
     const settings = currentSettings(content);
-    if (!fitsQrByteCapacity(content, settings.reliability)) {
+    if (!fitsQrCapacity(content, settings.reliability)) {
         currentQr = undefined;
         elements.preview.replaceChildren(elements.previewEmpty);
         elements.previewEmpty.hidden = false;

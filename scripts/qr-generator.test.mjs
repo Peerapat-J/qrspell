@@ -6,7 +6,7 @@ import {
     contrastRatio,
     createTextBadgeDataUrl,
     detectSupportedImageType,
-    fitsQrByteCapacity,
+    fitsQrCapacity,
     hasExpectedImageSignature,
     hexToHsv,
     hsvToHex,
@@ -89,12 +89,21 @@ test("reports contrast, inversion, density, and center-content risks", () => {
 });
 
 test("checks QR byte capacity before encoding", () => {
-    assert.equal(fitsQrByteCapacity("a".repeat(2331), "M"), true);
-    assert.equal(fitsQrByteCapacity("a".repeat(2332), "M"), false);
-    assert.equal(fitsQrByteCapacity(`${"é".repeat(1165)}`, "M"), true);
-    assert.equal(fitsQrByteCapacity(`${"é".repeat(1165)}a`, "M"), false);
-    assert.equal(fitsQrByteCapacity("a".repeat(1664), "Q"), false);
-    assert.equal(fitsQrByteCapacity("a".repeat(1274), "H"), false);
+    assert.equal(fitsQrCapacity("a".repeat(2331), "M"), true);
+    assert.equal(fitsQrCapacity("a".repeat(2332), "M"), false);
+    assert.equal(fitsQrCapacity(`${"é".repeat(1165)}`, "M"), true);
+    assert.equal(fitsQrCapacity(`${"é".repeat(1165)}a`, "M"), false);
+    assert.equal(fitsQrCapacity("a".repeat(1664), "Q"), false);
+    assert.equal(fitsQrCapacity("a".repeat(1274), "H"), false);
+});
+
+test("uses the encoder's compact-mode capacities", () => {
+    assert.equal(fitsQrCapacity("1".repeat(5596), "M"), true);
+    assert.equal(fitsQrCapacity("1".repeat(5597), "M"), false);
+    assert.equal(fitsQrCapacity("A".repeat(3391), "M"), true);
+    assert.equal(fitsQrCapacity("A".repeat(3392), "M"), false);
+    assert.equal(fitsQrCapacity("1".repeat(3993), "Q"), true);
+    assert.equal(fitsQrCapacity("A".repeat(1853), "H"), false);
 });
 
 test("builds supported QR options and safe defaults", () => {
