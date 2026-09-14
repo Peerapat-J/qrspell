@@ -54,6 +54,7 @@ const defaultState = {
 let currentQr;
 let currentContent = "";
 let currentQrVerified = false;
+let currentVerifiedPngBlob;
 let centerImageDataUrl = "";
 let centerImageLoadID = 0;
 let renderTimer;
@@ -642,6 +643,7 @@ async function renderQr() {
         }
 
         if (decoded === content) {
+            currentVerifiedPngBlob = blob;
             currentQrVerified = true;
             enableExport();
             setStatus("verified", "QR data verified");
@@ -872,16 +874,15 @@ function readFileAsDataUrl(file) {
 }
 
 async function copyPng() {
-    if (!currentQr || !currentQrVerified) {
+    if (!currentQr || !currentQrVerified || !currentVerifiedPngBlob) {
         return;
     }
 
     try {
-        const blob = await currentQr.getRawData("png");
         if (!navigator.clipboard?.write || !window.ClipboardItem) {
             throw new Error("Copying images is not supported in this browser. Download the PNG instead.");
         }
-        await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
+        await navigator.clipboard.write([new ClipboardItem({ "image/png": currentVerifiedPngBlob })]);
         setStatus("verified", "PNG copied");
     } catch (error) {
         setStatus("error", readableError(error));
@@ -974,6 +975,7 @@ function enableExport() {
 
 function disableExport() {
     currentQrVerified = false;
+    currentVerifiedPngBlob = undefined;
     elements.copyButton.disabled = true;
     elements.downloadButton.disabled = true;
 }

@@ -154,6 +154,32 @@ test("QR generator controls work together in a real browser", { timeout: 30_000 
             });
         });
 
+        await context.test("Copy PNG uses the already verified blob", async () => {
+            await navigate(client, `${site.origin}/qr-code-generator/?test=copy-verified-blob`);
+            await client.evaluate(`(() => {
+                const content = document.querySelector("#qr-content");
+                content.value = "copy verified blob test";
+                content.dispatchEvent(new Event("input", { bubbles: true }));
+            })()`);
+            await waitFor(client, `document.querySelector("#verification-status").dataset.state === "verified"`);
+            await client.evaluate(`(() => {
+                window.__qrspellClipboardWriteCalled = false;
+                Object.defineProperty(navigator, "clipboard", {
+                    configurable: true,
+                    value: {
+                        write(items) {
+                            window.__qrspellClipboardWriteCalled = items[0].types.includes("image/png");
+                            return Promise.resolve();
+                        },
+                    },
+                });
+                window.QRCodeStyling.prototype.getRawData = () => new Promise(() => {});
+                document.querySelector("#copy-qr").click();
+            })()`);
+            await waitFor(client, `window.__qrspellClipboardWriteCalled === true`);
+            await waitFor(client, `document.querySelector("#verification-status").textContent.includes("PNG copied")`);
+        });
+
         await context.test("oversized center images are rejected before file reading", async () => {
             await navigate(client, `${site.origin}/qr-code-generator/?test=oversized-image`);
             await client.evaluate(`(() => {
