@@ -157,6 +157,42 @@ test("QR generator controls work together in a real browser", { timeout: 30_000 
             });
         });
 
+        await context.test("non-ASCII byte data declares UTF-8 with ECI 26", async () => {
+            await navigate(client, `${site.origin}/qr-code-generator/?test=utf8-eci`);
+            const decoded = await client.evaluate(`(async () => {
+                const content = "สวัสดี 👋";
+                const qr = new window.QRCodeStyling({
+                    width: 512,
+                    height: 512,
+                    type: "canvas",
+                    data: content,
+                    qrOptions: { errorCorrectionLevel: "M" },
+                });
+                const blob = await qr.getRawData("png");
+                const bitmap = await createImageBitmap(blob);
+                const canvas = document.createElement("canvas");
+                canvas.width = bitmap.width;
+                canvas.height = bitmap.height;
+                const context2d = canvas.getContext("2d", { willReadFrequently: true });
+                context2d.drawImage(bitmap, 0, 0);
+                bitmap.close();
+                const image = context2d.getImageData(0, 0, canvas.width, canvas.height);
+                const result = window.jsQR(image.data, image.width, image.height);
+                return {
+                    data: result?.data,
+                    chunks: result?.chunks?.map((chunk) => ({
+                        type: chunk.type,
+                        assignmentNumber: chunk.assignmentNumber,
+                    })),
+                };
+            })()`);
+            assert.equal(decoded.data, "สวัสดี 👋");
+            assert.deepEqual(decoded.chunks.slice(0, 2), [
+                { type: "eci", assignmentNumber: 26 },
+                { type: "byte" },
+            ]);
+        });
+
         await context.test("Copy PNG uses the already verified blob", async () => {
             await navigate(client, `${site.origin}/qr-code-generator/?test=copy-verified-blob`);
             await client.evaluate(`(() => {

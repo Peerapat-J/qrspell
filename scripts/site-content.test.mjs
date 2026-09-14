@@ -82,6 +82,9 @@ test("QR generator runtime dependencies are bundled locally", () => {
     const stylingBundle = read("assets/vendor/qr-code-styling/qr-code-styling.js");
     assert.ok(stylingBundle.length > 40_000);
     assert.match(stylingBundle, /Array\.from\(new TextEncoder\(\)\.encode\(t\)\)/u);
+    assert.match(stylingBundle, /getMode:function\(\)\{return 7\}/u);
+    assert.match(stylingBundle, /t\.put\(26,8\)/u);
+    assert.match(stylingBundle, /7==s\.getMode\(\)/u);
     assert.doesNotMatch(stylingBundle, /e\.push\(255&r\)/u);
     assert.ok(readFileSync(join(root, "assets/vendor/jsqr/jsQR.js")).length > 250_000);
 });
