@@ -470,15 +470,16 @@ async function cleanupTestResources({ client, browser, site }) {
         }
     }
     if (cleanupErrors.length > 0) {
-        throw new AggregateError(cleanupErrors, "Browser test cleanup failed.");
+        const details = cleanupErrors.map((error) => error.message).join("; ");
+        throw new AggregateError(cleanupErrors, `Browser test cleanup failed: ${details}`);
     }
 }
 
 async function stopBrowser(browser) {
     if (!hasProcessExited(browser.process)) {
-        browser.process.kill("SIGTERM");
+        signalBrowserProcess(browser.process, "SIGTERM");
         if (!await waitForProcessExit(browser.process)) {
-            browser.process.kill("SIGKILL");
+            signalBrowserProcess(browser.process, "SIGKILL");
             await waitForProcessExit(browser.process);
         }
     }
@@ -488,6 +489,20 @@ async function stopBrowser(browser) {
         maxRetries: 10,
         retryDelay: 100,
     });
+}
+
+function signalBrowserProcess(child, signal) {
+    if (process.platform !== "win32" && Number.isInteger(child.pid)) {
+        try {
+            process.kill(-child.pid, signal);
+            return;
+        } catch (error) {
+            if (error.code !== "ESRCH") {
+                throw error;
+            }
+        }
+    }
+    child.kill(signal);
 }
 
 function hasProcessExited(child) {
@@ -526,7 +541,10 @@ async function startBrowser() {
         "--remote-debugging-port=0",
         `--user-data-dir=${profile}`,
         "about:blank",
-    ], { stdio: ["ignore", "ignore", "pipe"] });
+    ], {
+        detached: process.platform !== "win32",
+        stdio: ["ignore", "ignore", "pipe"],
+    });
 
     try {
         const websocketUrl = await new Promise((resolvePromise, reject) => {
