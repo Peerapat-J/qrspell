@@ -6,6 +6,7 @@ import {
     contrastRatio,
     createTextBadgeDataUrl,
     detectSupportedImageType,
+    fitsQrByteCapacity,
     hasExpectedImageSignature,
     hexToHsv,
     hsvToHex,
@@ -85,6 +86,15 @@ test("reports contrast, inversion, density, and center-content risks", () => {
     assert.ok(warnings.some((warning) => warning.includes("contrast")));
     assert.ok(warnings.some((warning) => warning.includes("dense")));
     assert.ok(warnings.some((warning) => warning.includes("Maximum reliability")));
+});
+
+test("checks QR byte capacity before encoding", () => {
+    assert.equal(fitsQrByteCapacity("a".repeat(2331), "M"), true);
+    assert.equal(fitsQrByteCapacity("a".repeat(2332), "M"), false);
+    assert.equal(fitsQrByteCapacity(`${"é".repeat(1165)}`, "M"), true);
+    assert.equal(fitsQrByteCapacity(`${"é".repeat(1165)}a`, "M"), false);
+    assert.equal(fitsQrByteCapacity("a".repeat(1664), "Q"), false);
+    assert.equal(fitsQrByteCapacity("a".repeat(1274), "H"), false);
 });
 
 test("builds supported QR options and safe defaults", () => {

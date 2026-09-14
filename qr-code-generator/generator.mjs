@@ -2,6 +2,7 @@ import {
     buildQrOptions,
     createTextBadgeDataUrl,
     detectSupportedImageType,
+    fitsQrByteCapacity,
     hexToHsv,
     hsvToHex,
     quietZoneMargin,
@@ -635,6 +636,16 @@ async function renderQr() {
     }
 
     const settings = currentSettings(content);
+    if (!fitsQrByteCapacity(content, settings.reliability)) {
+        currentQr = undefined;
+        elements.preview.replaceChildren(elements.previewEmpty);
+        elements.previewEmpty.hidden = false;
+        elements.warnings.replaceChildren();
+        elements.warnings.hidden = true;
+        disableExport();
+        setStatus("error", "This content is too long for a QR code. Shorten it and try again.");
+        return;
+    }
     renderWarnings(settings);
     setStatus("checking", "Checking QR data…");
     disableExport();

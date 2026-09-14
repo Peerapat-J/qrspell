@@ -2,6 +2,11 @@ const reliabilityLevels = new Set(["M", "Q", "H"]);
 const exportSizes = new Set([256, 512, 1024]);
 const moduleShapes = new Set(["square", "rounded", "dots"]);
 const finderShapes = new Set(["square", "rounded", "circle"]);
+const maximumQrByteCapacities = {
+    M: { ascii: 2331, utf8Eci: 2330 },
+    Q: { ascii: 1663, utf8Eci: 1662 },
+    H: { ascii: 1273, utf8Eci: 1272 },
+};
 
 export function normalizeHexColor(value, fallback = "#000000") {
     const normalized = String(value ?? "").trim().toUpperCase();
@@ -134,6 +139,17 @@ export function splitGraphemesFallback(value) {
 export function truncateGraphemes(value, maximum = 6) {
     const limit = Math.max(0, Math.floor(Number(maximum) || 0));
     return splitGraphemes(value).slice(0, limit).join("");
+}
+
+export function fitsQrByteCapacity(value, reliability) {
+    const content = String(value ?? "");
+    const level = reliabilityLevels.has(reliability) ? reliability : "M";
+    const capacities = maximumQrByteCapacities[level];
+    if (content.length > capacities.ascii) {
+        return false;
+    }
+    const capacity = /[^\x00-\x7F]/u.test(content) ? capacities.utf8Eci : capacities.ascii;
+    return new TextEncoder().encode(content).length <= capacity;
 }
 
 export function readabilityWarnings({

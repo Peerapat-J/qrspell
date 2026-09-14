@@ -157,6 +157,36 @@ test("QR generator controls work together in a real browser", { timeout: 30_000 
             });
         });
 
+        await context.test("oversized content is rejected before constructing the QR encoder", async () => {
+            await navigate(client, `${site.origin}/qr-code-generator/?test=oversized-content`);
+            await client.evaluate(`(() => {
+                const OriginalQRCodeStyling = window.QRCodeStyling;
+                window.__qrspellQrConstructorCalls = 0;
+                window.QRCodeStyling = function (...argumentsList) {
+                    window.__qrspellQrConstructorCalls += 1;
+                    return new OriginalQRCodeStyling(...argumentsList);
+                };
+                window.QRCodeStyling.prototype = OriginalQRCodeStyling.prototype;
+                const content = document.querySelector("#qr-content");
+                content.value = "x".repeat(1024 * 1024);
+                content.dispatchEvent(new Event("input", { bubbles: true }));
+            })()`);
+            await waitFor(client, `document.querySelector("#verification-status").dataset.state === "error"`);
+            assert.deepEqual(await client.evaluate(`(() => ({
+                message: document.querySelector("#verification-status span:last-child").textContent,
+                constructorCalls: window.__qrspellQrConstructorCalls,
+                previewCleared: document.querySelector("#qr-preview-empty").hidden === false,
+                copyDisabled: document.querySelector("#copy-qr").disabled,
+                downloadDisabled: document.querySelector("#download-qr").disabled,
+            }))()`), {
+                message: "This content is too long for a QR code. Shorten it and try again.",
+                constructorCalls: 0,
+                previewCleared: true,
+                copyDisabled: true,
+                downloadDisabled: true,
+            });
+        });
+
         await context.test("non-ASCII byte data declares UTF-8 with ECI 26", async () => {
             await navigate(client, `${site.origin}/qr-code-generator/?test=utf8-eci`);
             const decoded = await client.evaluate(`(async () => {
