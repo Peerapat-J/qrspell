@@ -115,7 +115,20 @@ export function splitGraphemes(value) {
         const segmenter = new Intl.Segmenter(undefined, { granularity: "grapheme" });
         return [...segmenter.segment(content)].map(({ segment }) => segment);
     }
-    return [...content];
+    return splitGraphemesFallback(content);
+}
+
+export function splitGraphemesFallback(value) {
+    const clusters = [];
+    for (const codePoint of String(value ?? "")) {
+        const current = clusters.at(-1);
+        if (!current || startsNewGrapheme(current, codePoint)) {
+            clusters.push(codePoint);
+        } else {
+            clusters[clusters.length - 1] += codePoint;
+        }
+    }
+    return clusters;
 }
 
 export function truncateGraphemes(value, maximum = 6) {
@@ -279,6 +292,53 @@ function graphemeWidthUnits(grapheme) {
     if (/^[MW@#%&]$/u.test(grapheme)) return 0.9;
     if (/^[\x00-\x7F]$/u.test(grapheme)) return 0.62;
     return 0.9;
+}
+
+function startsNewGrapheme(cluster, codePoint) {
+    const previous = [...cluster].at(-1);
+    if (previous === "\r" && codePoint === "\n") return false;
+    if (isControlCodePoint(previous) || isControlCodePoint(codePoint)) return true;
+    if (isGraphemeExtension(codePoint) || codePoint === "\u200D" || previous === "\u200D") return false;
+    if (continuesHangulSyllable(previous, codePoint)) return false;
+    if (isRegionalIndicator(previous) && isRegionalIndicator(codePoint)) {
+        const regionalCount = [...cluster].filter(isRegionalIndicator).length;
+        return regionalCount % 2 === 0;
+    }
+    return true;
+}
+
+function isControlCodePoint(codePoint) {
+    return /^[\u0000-\u001F\u007F-\u009F]$/u.test(codePoint);
+}
+
+function isGraphemeExtension(codePoint) {
+    const value = codePoint.codePointAt(0);
+    return /\p{Mark}/u.test(codePoint)
+        || (value >= 0xFE00 && value <= 0xFE0F)
+        || (value >= 0x1F3FB && value <= 0x1F3FF)
+        || (value >= 0xE0100 && value <= 0xE01EF)
+        || (value >= 0xE0020 && value <= 0xE007F);
+}
+
+function isRegionalIndicator(codePoint) {
+    const value = codePoint.codePointAt(0);
+    return value >= 0x1F1E6 && value <= 0x1F1FF;
+}
+
+function continuesHangulSyllable(previous, codePoint) {
+    const first = hangulType(previous.codePointAt(0));
+    const second = hangulType(codePoint.codePointAt(0));
+    return (first === "L" && ["L", "V", "LV", "LVT"].includes(second))
+        || (["LV", "V"].includes(first) && ["V", "T"].includes(second))
+        || (["LVT", "T"].includes(first) && second === "T");
+}
+
+function hangulType(value) {
+    if ((value >= 0x1100 && value <= 0x115F) || (value >= 0xA960 && value <= 0xA97C)) return "L";
+    if ((value >= 0x1160 && value <= 0x11A7) || (value >= 0xD7B0 && value <= 0xD7C6)) return "V";
+    if ((value >= 0x11A8 && value <= 0x11FF) || (value >= 0xD7CB && value <= 0xD7FB)) return "T";
+    if (value >= 0xAC00 && value <= 0xD7A3) return (value - 0xAC00) % 28 === 0 ? "LV" : "LVT";
+    return "";
 }
 
 function readJpegDimensions(data) {

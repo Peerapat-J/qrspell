@@ -14,6 +14,7 @@ import {
     readImageDimensions,
     readabilityWarnings,
     splitGraphemes,
+    splitGraphemesFallback,
     truncateGraphemes,
 } from "../qr-code-generator/generator-core.mjs";
 
@@ -152,6 +153,20 @@ test("keeps complete grapheme clusters in center text", () => {
     assert.match(badge, new RegExp(family, "u"));
     assert.match(badge, /font-size="224"/u);
     assert.doesNotMatch(badge, /\u200D<\/text>/u);
+});
+
+test("fallback segmentation preserves common multi-code-point graphemes", () => {
+    assert.deepEqual(splitGraphemesFallback("👨‍👩‍👧‍👦👍🏽🇹🇭é1️⃣"), [
+        "👨‍👩‍👧‍👦",
+        "👍🏽",
+        "🇹🇭",
+        "é",
+        "1️⃣",
+    ]);
+    assert.equal(
+        splitGraphemesFallback("👨‍👩‍👧‍👦123456").slice(0, 6).join(""),
+        "👨‍👩‍👧‍👦12345",
+    );
 });
 
 test("calculates a four-module quiet zone for each export size", () => {
