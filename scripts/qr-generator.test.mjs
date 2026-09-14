@@ -11,6 +11,7 @@ import {
     hsvToHex,
     normalizeHexColor,
     quietZoneMargin,
+    readImageDimensions,
     readabilityWarnings,
     splitGraphemes,
     truncateGraphemes,
@@ -46,6 +47,27 @@ test("accepts only image bytes that match their declared raster format", () => {
     assert.equal(detectSupportedImageType(jpeg), "image/jpeg");
     assert.equal(detectSupportedImageType(webp), "image/webp");
     assert.equal(detectSupportedImageType(new Uint8Array([1, 2, 3, 4])), "");
+});
+
+test("reads dimensions from supported raster image headers", () => {
+    const png = Uint8Array.from([
+        0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A,
+        0, 0, 0, 13, 0x49, 0x48, 0x44, 0x52,
+        0, 0, 0x10, 0, 0, 0, 0x08, 0,
+    ]);
+    const jpeg = Uint8Array.from([
+        0xFF, 0xD8, 0xFF, 0xE0, 0, 2,
+        0xFF, 0xC0, 0, 7, 8, 0x08, 0, 0x10, 0,
+    ]);
+    const webp = Uint8Array.from([
+        0x52, 0x49, 0x46, 0x46, 18, 0, 0, 0, 0x57, 0x45, 0x42, 0x50,
+        0x56, 0x50, 0x38, 0x58, 10, 0, 0, 0,
+        0, 0, 0, 0, 0xFF, 0x0F, 0, 0xFF, 0x07, 0,
+    ]);
+    assert.deepEqual(readImageDimensions(png), { width: 4096, height: 2048 });
+    assert.deepEqual(readImageDimensions(jpeg), { width: 4096, height: 2048 });
+    assert.deepEqual(readImageDimensions(webp), { width: 4096, height: 2048 });
+    assert.equal(readImageDimensions(Uint8Array.from([1, 2, 3])), undefined);
 });
 
 test("reports contrast, inversion, density, and center-content risks", () => {

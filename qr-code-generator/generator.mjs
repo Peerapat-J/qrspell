@@ -5,6 +5,7 @@ import {
     hexToHsv,
     hsvToHex,
     quietZoneMargin,
+    readImageDimensions,
     readabilityWarnings,
     truncateGraphemes,
 } from "./generator-core.mjs?v=20260914b";
@@ -60,6 +61,9 @@ let centerImageLoadID = 0;
 let renderTimer;
 let renderID = 0;
 const maximumCenterImageBytes = 5 * 1024 * 1024;
+const maximumCenterImageDimension = 4096;
+const maximumCenterImagePixels = 4096 * 4096;
+const centerImageDimensionError = "Choose an image no larger than 4096 × 4096 px (16.8 MP).";
 const customSelectInstances = [];
 const customColorInstances = [];
 
@@ -782,14 +786,19 @@ async function loadCenterImage() {
     elements.centerImageName.textContent = file.name;
     setStatus("checking", "Checking center image…");
     try {
-        const header = new Uint8Array(await file.slice(0, 12).arrayBuffer());
+        const bytes = new Uint8Array(await file.arrayBuffer());
         if (!isCurrentCenterImageLoad(activeLoadID, file)) {
             return;
         }
-        const detectedType = detectSupportedImageType(header);
+        const detectedType = detectSupportedImageType(bytes);
         if (!detectedType) {
             throw new Error("The file is not a supported image format.");
         }
+        const dimensions = readImageDimensions(bytes, detectedType);
+        if (!dimensions) {
+            throw new Error("The image dimensions could not be read.");
+        }
+        assertSafeCenterImageDimensions(dimensions.width, dimensions.height);
         const normalizedImage = file.type === detectedType
             ? file
             : new Blob([file], { type: detectedType });
@@ -803,11 +812,13 @@ async function loadCenterImage() {
         }
         centerImageDataUrl = dataUrl;
         scheduleRender();
-    } catch {
+    } catch (error) {
         if (!isCurrentCenterImageLoad(activeLoadID, file)) {
             return;
         }
-        rejectCenterImage("The selected image could not be decoded. Choose a valid PNG, JPEG, or WebP file.");
+        rejectCenterImage(error?.message === centerImageDimensionError
+            ? centerImageDimensionError
+            : "The selected image could not be decoded. Choose a valid PNG, JPEG, or WebP file.");
     }
 }
 
@@ -820,11 +831,11 @@ function isCurrentCenterImageLoad(loadID, file) {
 async function decodeCenterImageFile(file) {
     if ("createImageBitmap" in window) {
         const bitmap = await window.createImageBitmap(file);
-        if (bitmap.width < 1 || bitmap.height < 1) {
+        try {
+            assertSafeCenterImageDimensions(bitmap.width, bitmap.height);
+        } finally {
             bitmap.close();
-            throw new Error("The selected image has no visible pixels.");
         }
-        bitmap.close();
         return;
     }
 
@@ -844,15 +855,27 @@ function loadCenterImageFile(file) {
             completion();
         };
         image.onload = () => finish(() => {
-            if (image.naturalWidth < 1 || image.naturalHeight < 1) {
-                reject(new Error("The selected image has no visible pixels."));
-            } else {
+            try {
+                assertSafeCenterImageDimensions(image.naturalWidth, image.naturalHeight);
                 resolve();
+            } catch (error) {
+                reject(error);
             }
         });
         image.onerror = () => finish(() => reject(new Error("Image decoding failed.")));
         image.src = url;
     });
+}
+
+function assertSafeCenterImageDimensions(width, height) {
+    if (width < 1 || height < 1) {
+        throw new Error("The selected image has no visible pixels.");
+    }
+    if (width > maximumCenterImageDimension
+        || height > maximumCenterImageDimension
+        || width * height > maximumCenterImagePixels) {
+        throw new Error(centerImageDimensionError);
+    }
 }
 
 function rejectCenterImage(message) {

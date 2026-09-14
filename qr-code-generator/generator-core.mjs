@@ -89,6 +89,26 @@ export function hasExpectedImageSignature(mimeType, bytes) {
     return detectSupportedImageType(bytes) === mimeType;
 }
 
+export function readImageDimensions(bytes, mimeType = detectSupportedImageType(bytes)) {
+    const data = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes ?? []);
+    if (mimeType === "image/png") {
+        if (data.length < 24 || ascii(data, 12, 16) !== "IHDR") {
+            return undefined;
+        }
+        return {
+            width: readUint32BigEndian(data, 16),
+            height: readUint32BigEndian(data, 20),
+        };
+    }
+    if (mimeType === "image/jpeg") {
+        return readJpegDimensions(data);
+    }
+    if (mimeType === "image/webp") {
+        return readWebpDimensions(data);
+    }
+    return undefined;
+}
+
 export function splitGraphemes(value) {
     const content = String(value ?? "");
     if (typeof Intl.Segmenter === "function") {
@@ -246,6 +266,92 @@ function escapeXml(value) {
         .replaceAll(">", "&gt;")
         .replaceAll('"', "&quot;")
         .replaceAll("'", "&apos;");
+}
+
+function readJpegDimensions(data) {
+    let offset = 2;
+    const startOfFrameMarkers = new Set([
+        0xC0, 0xC1, 0xC2, 0xC3, 0xC5, 0xC6, 0xC7,
+        0xC9, 0xCA, 0xCB, 0xCD, 0xCE, 0xCF,
+    ]);
+
+    while (offset + 3 < data.length) {
+        while (data[offset] === 0xFF) offset += 1;
+        const marker = data[offset];
+        offset += 1;
+        if (marker === 0xD9 || marker === 0xDA) return undefined;
+        if (marker === 0x01 || (marker >= 0xD0 && marker <= 0xD7)) continue;
+        if (offset + 1 >= data.length) return undefined;
+        const segmentLength = (data[offset] << 8) | data[offset + 1];
+        if (segmentLength < 2 || offset + segmentLength > data.length) return undefined;
+        if (startOfFrameMarkers.has(marker)) {
+            if (segmentLength < 7) return undefined;
+            return {
+                width: (data[offset + 5] << 8) | data[offset + 6],
+                height: (data[offset + 3] << 8) | data[offset + 4],
+            };
+        }
+        offset += segmentLength;
+    }
+    return undefined;
+}
+
+function readWebpDimensions(data) {
+    let offset = 12;
+    while (offset + 8 <= data.length) {
+        const chunkType = ascii(data, offset, offset + 4);
+        const chunkLength = readUint32LittleEndian(data, offset + 4);
+        const chunkStart = offset + 8;
+        if (chunkStart + chunkLength > data.length) return undefined;
+
+        if (chunkType === "VP8X" && chunkLength >= 10) {
+            return {
+                width: 1 + readUint24LittleEndian(data, chunkStart + 4),
+                height: 1 + readUint24LittleEndian(data, chunkStart + 7),
+            };
+        }
+        if (chunkType === "VP8L" && chunkLength >= 5 && data[chunkStart] === 0x2F) {
+            return {
+                width: 1 + data[chunkStart + 1] + ((data[chunkStart + 2] & 0x3F) << 8),
+                height: 1 + (data[chunkStart + 2] >> 6)
+                    + (data[chunkStart + 3] << 2)
+                    + ((data[chunkStart + 4] & 0x0F) << 10),
+            };
+        }
+        if (chunkType === "VP8 " && chunkLength >= 10
+            && data[chunkStart + 3] === 0x9D
+            && data[chunkStart + 4] === 0x01
+            && data[chunkStart + 5] === 0x2A) {
+            return {
+                width: ((data[chunkStart + 7] << 8) | data[chunkStart + 6]) & 0x3FFF,
+                height: ((data[chunkStart + 9] << 8) | data[chunkStart + 8]) & 0x3FFF,
+            };
+        }
+        offset = chunkStart + chunkLength + (chunkLength % 2);
+    }
+    return undefined;
+}
+
+function ascii(data, start, end) {
+    return String.fromCharCode(...data.slice(start, end));
+}
+
+function readUint24LittleEndian(data, offset) {
+    return data[offset] | (data[offset + 1] << 8) | (data[offset + 2] << 16);
+}
+
+function readUint32BigEndian(data, offset) {
+    return ((data[offset] * 0x1000000)
+        + (data[offset + 1] << 16)
+        + (data[offset + 2] << 8)
+        + data[offset + 3]) >>> 0;
+}
+
+function readUint32LittleEndian(data, offset) {
+    return (data[offset]
+        + (data[offset + 1] << 8)
+        + (data[offset + 2] << 16)
+        + (data[offset + 3] * 0x1000000)) >>> 0;
 }
 
 function clamp(value, minimum, maximum) {

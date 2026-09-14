@@ -257,6 +257,41 @@ test("QR generator controls work together in a real browser", { timeout: 30_000 
             });
         });
 
+        await context.test("oversized image dimensions are rejected before decoding", async () => {
+            await navigate(client, `${site.origin}/qr-code-generator/?test=oversized-image-dimensions`);
+            await client.evaluate(`(() => {
+                window.__qrspellImageDecodeCalled = false;
+                const originalCreateImageBitmap = window.createImageBitmap;
+                window.createImageBitmap = (...argumentsList) => {
+                    window.__qrspellImageDecodeCalled = true;
+                    return originalCreateImageBitmap(...argumentsList);
+                };
+                const centerType = document.querySelector("#center-type");
+                centerType.value = "image";
+                centerType.dispatchEvent(new Event("change", { bubbles: true }));
+                const bytes = Uint8Array.from([
+                    0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A,
+                    0, 0, 0, 13, 0x49, 0x48, 0x44, 0x52,
+                    0, 0, 0x13, 0x88, 0, 0, 0, 1,
+                ]);
+                const transfer = new DataTransfer();
+                transfer.items.add(new File([bytes], "too-wide.png", { type: "image/png" }));
+                const input = document.querySelector("#center-image");
+                input.files = transfer.files;
+                input.dispatchEvent(new Event("change", { bubbles: true }));
+            })()`);
+            await waitFor(client, `document.querySelector("#center-image-error").textContent.includes("4096 × 4096")`);
+            assert.deepEqual(await client.evaluate(`(() => ({
+                error: document.querySelector("#center-image-error").textContent,
+                decodeCalled: window.__qrspellImageDecodeCalled,
+                fileCount: document.querySelector("#center-image").files.length,
+            }))()`), {
+                error: "Choose an image no larger than 4096 × 4096 px (16.8 MP).",
+                decodeCalled: false,
+                fileCount: 0,
+            });
+        });
+
         await context.test("corrupt center images are rejected before rendering", async () => {
             await navigate(client, `${site.origin}/qr-code-generator/?test=corrupt-image`);
             await client.evaluate(`(() => {
