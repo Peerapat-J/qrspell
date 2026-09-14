@@ -473,6 +473,30 @@ test("QR generator controls work together in a real browser", { timeout: 30_000 
                 copyDisabled: true,
                 downloadDisabled: true,
             });
+            await client.evaluate(`(() => {
+                const content = document.querySelector("#qr-content");
+                content.value = "edited after corrupt image";
+                content.dispatchEvent(new Event("input", { bubbles: true }));
+                const centerSize = document.querySelector("#center-size");
+                centerSize.value = "0.3";
+                centerSize.dispatchEvent(new Event("input", { bubbles: true }));
+            })()`);
+            await client.evaluate(`new Promise((resolvePromise) => setTimeout(resolvePromise, 300))`);
+            assert.deepEqual(await client.evaluate(`(() => ({
+                error: document.querySelector("#center-image-error").textContent,
+                errorHidden: document.querySelector("#center-image-error").hidden,
+                status: document.querySelector("#verification-status").dataset.state,
+                previewCleared: document.querySelector("#qr-preview-empty").hidden === false,
+                copyDisabled: document.querySelector("#copy-qr").disabled,
+                downloadDisabled: document.querySelector("#download-qr").disabled,
+            }))()`), {
+                error: "The selected image could not be decoded. Choose a valid PNG, JPEG, or WebP file.",
+                errorHidden: false,
+                status: "error",
+                previewCleared: true,
+                copyDisabled: true,
+                downloadDisabled: true,
+            });
         });
 
         await context.test("stale image failures do not replace a newer center mode", async () => {

@@ -59,6 +59,7 @@ let currentQrVerified = false;
 let currentVerifiedPngBlob;
 let centerImageDataUrl = "";
 let centerImageLoadID = 0;
+let centerImageValidationFailed = false;
 let renderTimer;
 let renderID = 0;
 const maximumCenterImageBytes = 5 * 1024 * 1024;
@@ -110,6 +111,7 @@ function bindControls() {
         if (event.target === elements.centerType) {
             if (elements.centerType.value !== "image") {
                 centerImageLoadID += 1;
+                centerImageValidationFailed = false;
                 clearCenterImageError();
             } else if (elements.centerImage.files.length > 0 && !centerImageDataUrl) {
                 loadCenterImage();
@@ -624,6 +626,10 @@ function scheduleRender() {
         return;
     }
 
+    if (elements.centerType.value === "image" && centerImageValidationFailed) {
+        return;
+    }
+
     if (!elements.content.value.trim()) {
         renderEmptyState();
         return;
@@ -794,6 +800,7 @@ async function loadCenterImage() {
     const [file] = elements.centerImage.files;
     const activeLoadID = ++centerImageLoadID;
     centerImageDataUrl = "";
+    centerImageValidationFailed = false;
     elements.centerImageName.textContent = "No image selected";
     clearCenterImageError();
     invalidateRenderedQr();
@@ -911,6 +918,7 @@ function assertSafeCenterImageDimensions(width, height) {
 
 function rejectCenterImage(message) {
     centerImageDataUrl = "";
+    centerImageValidationFailed = true;
     elements.centerImage.value = "";
     elements.centerImageName.textContent = "No image selected";
     elements.centerImageError.textContent = message;
@@ -1010,6 +1018,7 @@ function resetGenerator() {
         instance.hue = 0;
     }
     centerImageDataUrl = "";
+    centerImageValidationFailed = false;
     elements.centerImageName.textContent = "No image selected";
     clearCenterImageError();
     updateCenterFields();
