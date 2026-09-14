@@ -264,7 +264,12 @@ test("QR generator controls work together in a real browser", { timeout: 30_000 
         browser.process.kill("SIGTERM");
         await waitForProcessExit(browser.process);
         await closeServer(site.server);
-        rmSync(browser.profile, { recursive: true, force: true });
+        rmSync(browser.profile, {
+            recursive: true,
+            force: true,
+            maxRetries: 10,
+            retryDelay: 100,
+        });
     }
 });
 
