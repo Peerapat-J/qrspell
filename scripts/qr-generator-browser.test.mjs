@@ -648,6 +648,72 @@ test("QR generator controls work together in a real browser", { timeout: 30_000 
                 downloadDisabled: false,
             });
         });
+
+        await context.test("thin panoramic center images remain visible in the rendered QR", async () => {
+            await navigate(client, `${site.origin}/qr-code-generator/?test=thin-center-image`);
+            await client.evaluate(`(async () => {
+                const content = document.querySelector("#qr-content");
+                content.value = "1".repeat(5596);
+                content.dispatchEvent(new Event("input", { bubbles: true }));
+                const exportSize = document.querySelector("#export-size");
+                exportSize.value = "256";
+                exportSize.dispatchEvent(new Event("change", { bubbles: true }));
+                const centerType = document.querySelector("#center-type");
+                centerType.value = "image";
+                centerType.dispatchEvent(new Event("change", { bubbles: true }));
+                const centerSize = document.querySelector("#center-size");
+                centerSize.value = "0.16";
+                centerSize.dispatchEvent(new Event("input", { bubbles: true }));
+                const canvas = document.createElement("canvas");
+                canvas.width = 4096;
+                canvas.height = 100;
+                const context2d = canvas.getContext("2d");
+                context2d.fillStyle = "#FF0000";
+                context2d.fillRect(0, 0, canvas.width, canvas.height);
+                const blob = await new Promise((resolvePromise) => canvas.toBlob(resolvePromise, "image/png"));
+                const transfer = new DataTransfer();
+                transfer.items.add(new File([blob], "panorama.png", { type: "image/png" }));
+                const input = document.querySelector("#center-image");
+                input.files = transfer.files;
+                input.dispatchEvent(new Event("change", { bubbles: true }));
+            })()`);
+            await waitFor(client, `document.querySelector("#verification-status").dataset.state === "verified"`);
+            const rendered = await client.evaluate(`(async () => {
+                const svg = document.querySelector("#qr-preview svg");
+                const image = svg.querySelector("image");
+                const serialized = new XMLSerializer().serializeToString(svg);
+                const bitmap = await new Promise((resolvePromise, rejectPromise) => {
+                    const preview = new Image();
+                    preview.onload = () => resolvePromise(preview);
+                    preview.onerror = () => rejectPromise(new Error("QR SVG could not be rasterized"));
+                    preview.src = "data:image/svg+xml;base64," + btoa(serialized);
+                });
+                const canvas = document.createElement("canvas");
+                canvas.width = bitmap.width;
+                canvas.height = bitmap.height;
+                const context2d = canvas.getContext("2d", { willReadFrequently: true });
+                context2d.drawImage(bitmap, 0, 0);
+                const pixels = context2d.getImageData(0, 0, canvas.width, canvas.height).data;
+                let redPixels = 0;
+                for (let index = 0; index < pixels.length; index += 4) {
+                    if (pixels[index] > 180 && pixels[index + 1] < 100 && pixels[index + 2] < 100) {
+                        redPixels += 1;
+                    }
+                }
+                return {
+                    width: Number.parseFloat(image.getAttribute("width")),
+                    height: Number.parseFloat(image.getAttribute("height")),
+                    redPixels,
+                    copyDisabled: document.querySelector("#copy-qr").disabled,
+                    downloadDisabled: document.querySelector("#download-qr").disabled,
+                };
+            })()`);
+            assert.ok(rendered.width > 0, JSON.stringify(rendered));
+            assert.ok(rendered.height > 0, JSON.stringify(rendered));
+            assert.ok(rendered.redPixels > 0, JSON.stringify(rendered));
+            assert.equal(rendered.copyDisabled, false);
+            assert.equal(rendered.downloadDisabled, false);
+        });
     } finally {
         await cleanupTestResources({ client, browser, site });
     }

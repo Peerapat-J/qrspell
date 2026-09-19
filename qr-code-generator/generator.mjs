@@ -722,6 +722,42 @@ async function redrawWithExactQuietZone(qr, exportSize) {
     qr._options.margin = quietZoneMargin(exportSize, moduleCount);
     qr._setupSvg();
     await qr._svgDrawingPromise;
+    preserveVisibleCenterImage(qr);
+}
+
+function preserveVisibleCenterImage(qr) {
+    if (!qr._options.image) {
+        return;
+    }
+
+    const image = qr._svg?.querySelector("image");
+    const error = "The center image is too thin to display. Choose a less panoramic image.";
+    if (!image) {
+        throw new Error(error);
+    }
+
+    const margin = qr._options.imageOptions.margin;
+    const width = Number(image.getAttribute("width")?.replace(/px$/u, ""));
+    const height = Number(image.getAttribute("height")?.replace(/px$/u, ""));
+    const originalWidth = width + (2 * margin);
+    const originalHeight = height + (2 * margin);
+    if (!Number.isFinite(originalWidth) || !Number.isFinite(originalHeight)
+        || originalWidth <= 0 || originalHeight <= 0) {
+        throw new Error(error);
+    }
+
+    const safeMargin = Math.min(margin, Math.max(0, Math.floor((Math.min(originalWidth, originalHeight) - 1) / 2)));
+    if (safeMargin < margin) {
+        const recovered = margin - safeMargin;
+        image.setAttribute("x", String(Number(image.getAttribute("x")) - recovered));
+        image.setAttribute("y", String(Number(image.getAttribute("y")) - recovered));
+        image.setAttribute("width", `${width + (2 * recovered)}px`);
+        image.setAttribute("height", `${height + (2 * recovered)}px`);
+    }
+
+    if (originalWidth - (2 * safeMargin) <= 0 || originalHeight - (2 * safeMargin) <= 0) {
+        throw new Error(error);
+    }
 }
 
 function currentSettings(content) {
