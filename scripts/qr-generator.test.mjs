@@ -188,6 +188,22 @@ test("fallback segmentation preserves common multi-code-point graphemes", () => 
     );
 });
 
+test("fallback segmentation preserves Indic virama-linked conjuncts", () => {
+    const text = "aक्षक्षक्ष";
+    assert.deepEqual(splitGraphemesFallback(text), ["a", "क्ष", "क्ष", "क्ष"]);
+    assert.equal(splitGraphemesFallback(text).slice(0, 6).join(""), text);
+    const segmenter = Intl.Segmenter;
+    try {
+        Intl.Segmenter = undefined;
+        assert.equal(truncateGraphemes(text, 6), text);
+    } finally {
+        Intl.Segmenter = segmenter;
+    }
+    assert.deepEqual(splitGraphemesFallback("ক্তက္က"), ["ক্ত", "က္က"]);
+    assert.deepEqual(splitGraphemesFallback("क्́ष"), ["क्́ष"]);
+    assert.deepEqual(splitGraphemesFallback("क्अ"), ["क्", "अ"]);
+});
+
 test("calculates a four-module quiet zone for each export size", () => {
     assert.equal(quietZoneMargin(512, 21), (512 * 4) / 29);
     assert.equal(quietZoneMargin(1024, 177), (1024 * 4) / 185);

@@ -7,6 +7,41 @@ const maximumQrCapacities = {
     Q: { numeric: 3993, alphanumeric: 2420, byte: 1663, utf8Eci: 1662 },
     H: { numeric: 3057, alphanumeric: 1852, byte: 1273, utf8Eci: 1272 },
 };
+// Unicode 17 Indic_Conjunct_Break=Consonant and =Linker ranges for GB9c.
+// https://www.unicode.org/Public/17.0.0/ucd/DerivedCoreProperties.txt
+const indicConsonantRanges = [
+    [0x0915, 0x0939], [0x0958, 0x095F], [0x0978, 0x097F],
+    [0x0995, 0x09A8], [0x09AA, 0x09B0], [0x09B2, 0x09B2],
+    [0x09B6, 0x09B9], [0x09DC, 0x09DD], [0x09DF, 0x09DF], [0x09F0, 0x09F1],
+    [0x0A95, 0x0AA8], [0x0AAA, 0x0AB0], [0x0AB2, 0x0AB3],
+    [0x0AB5, 0x0AB9], [0x0AF9, 0x0AF9],
+    [0x0B15, 0x0B28], [0x0B2A, 0x0B30], [0x0B32, 0x0B33],
+    [0x0B35, 0x0B39], [0x0B5C, 0x0B5D], [0x0B5F, 0x0B5F], [0x0B71, 0x0B71],
+    [0x0C15, 0x0C28], [0x0C2A, 0x0C39], [0x0C58, 0x0C5A],
+    [0x0D15, 0x0D3A], [0x1000, 0x102A], [0x103F, 0x103F],
+    [0x1050, 0x1055], [0x105A, 0x105D], [0x1061, 0x1061],
+    [0x1065, 0x1066], [0x106E, 0x1070], [0x1075, 0x1081], [0x108E, 0x108E],
+    [0x1780, 0x17B3], [0x1A20, 0x1A54],
+    [0x1B0B, 0x1B0C], [0x1B13, 0x1B33], [0x1B45, 0x1B4C],
+    [0x1B83, 0x1BA0], [0x1BAE, 0x1BAF], [0x1BBB, 0x1BBD],
+    [0xA989, 0xA98B], [0xA98F, 0xA9B2],
+    [0xA9E0, 0xA9E4], [0xA9E7, 0xA9EF], [0xA9FA, 0xA9FE],
+    [0xAA60, 0xAA6F], [0xAA71, 0xAA73], [0xAA7A, 0xAA7A],
+    [0xAA7E, 0xAA7F], [0xAAE0, 0xAAEA], [0xABC0, 0xABDA],
+    [0x10A00, 0x10A00], [0x10A10, 0x10A13], [0x10A15, 0x10A17],
+    [0x10A19, 0x10A35], [0x11103, 0x11126], [0x11144, 0x11144],
+    [0x11147, 0x11147], [0x11380, 0x11389], [0x1138B, 0x1138B],
+    [0x1138E, 0x1138E], [0x11390, 0x113B5], [0x11900, 0x11906],
+    [0x11909, 0x11909], [0x1190C, 0x11913], [0x11915, 0x11916],
+    [0x11918, 0x1192F], [0x11A00, 0x11A00], [0x11A0B, 0x11A32],
+    [0x11A50, 0x11A50], [0x11A5C, 0x11A83],
+    [0x11F04, 0x11F10], [0x11F12, 0x11F33],
+];
+const indicLinkers = new Set([
+    0x094D, 0x09CD, 0x0ACD, 0x0B4D, 0x0C4D, 0x0D4D, 0x1039,
+    0x17D2, 0x1A60, 0x1B44, 0x1BAB, 0xA9C0, 0xAAF6,
+    0x10A3F, 0x11133, 0x113D0, 0x1193E, 0x11A47, 0x11A99, 0x11F42,
+]);
 
 export function normalizeHexColor(value, fallback = "#000000") {
     const normalized = String(value ?? "").trim().toUpperCase();
@@ -321,12 +356,43 @@ function startsNewGrapheme(cluster, codePoint) {
     if (previous === "\r" && codePoint === "\n") return false;
     if (isControlCodePoint(previous) || isControlCodePoint(codePoint)) return true;
     if (isGraphemeExtension(codePoint) || codePoint === "\u200D" || previous === "\u200D") return false;
+    if (continuesIndicConjunct(cluster, codePoint)) return false;
     if (continuesHangulSyllable(previous, codePoint)) return false;
     if (isRegionalIndicator(previous) && isRegionalIndicator(codePoint)) {
         const regionalCount = [...cluster].filter(isRegionalIndicator).length;
         return regionalCount % 2 === 0;
     }
     return true;
+}
+
+function continuesIndicConjunct(cluster, codePoint) {
+    if (!isIndicConsonant(codePoint)) return false;
+
+    let hasLinker = false;
+    for (const previous of [...cluster].reverse()) {
+        if (indicLinkers.has(previous.codePointAt(0))) {
+            hasLinker = true;
+        } else if (isGraphemeExtension(previous) || previous === "\u200D") {
+            continue;
+        } else {
+            return hasLinker && isIndicConsonant(previous);
+        }
+    }
+    return false;
+}
+
+function isIndicConsonant(codePoint) {
+    const value = codePoint.codePointAt(0);
+    let first = 0;
+    let last = indicConsonantRanges.length - 1;
+    while (first <= last) {
+        const middle = Math.floor((first + last) / 2);
+        const [start, end] = indicConsonantRanges[middle];
+        if (value < start) last = middle - 1;
+        else if (value > end) first = middle + 1;
+        else return true;
+    }
+    return false;
 }
 
 function isControlCodePoint(codePoint) {
