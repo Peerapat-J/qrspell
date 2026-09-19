@@ -630,7 +630,7 @@ function scheduleRender() {
         return;
     }
 
-    if (!elements.content.value.trim()) {
+    if (!elements.content.value) {
         renderEmptyState();
         return;
     }
@@ -645,7 +645,7 @@ async function renderQr() {
     renderID += 1;
     const activeRenderID = renderID;
 
-    if (!content.trim()) {
+    if (!content) {
         renderEmptyState();
         return;
     }

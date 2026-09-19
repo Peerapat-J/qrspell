@@ -181,6 +181,25 @@ test("QR generator controls work together in a real browser", { timeout: 30_000 
             });
         });
 
+        await context.test("whitespace-only content is encoded and verified exactly", async () => {
+            await navigate(client, `${site.origin}/qr-code-generator/?test=whitespace-content`);
+            await client.evaluate(`(() => {
+                const content = document.querySelector("#qr-content");
+                content.value = " \\t\\n ";
+                content.dispatchEvent(new Event("input", { bubbles: true }));
+            })()`);
+            await waitFor(client, `document.querySelector("#verification-status").dataset.state === "verified"`);
+            assert.deepEqual(await client.evaluate(`(() => ({
+                count: document.querySelector("#character-count").textContent,
+                copyDisabled: document.querySelector("#copy-qr").disabled,
+                downloadDisabled: document.querySelector("#download-qr").disabled,
+            }))()`), {
+                count: "4 characters",
+                copyDisabled: false,
+                downloadDisabled: false,
+            });
+        });
+
         await context.test("oversized content is rejected before constructing the QR encoder", async () => {
             await navigate(client, `${site.origin}/qr-code-generator/?test=oversized-content`);
             await client.evaluate(`(() => {
