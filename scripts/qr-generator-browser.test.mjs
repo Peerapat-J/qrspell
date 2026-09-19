@@ -228,7 +228,7 @@ test("QR generator controls work together in a real browser", { timeout: 30_000 
                 content.dispatchEvent(new Event("input", { bubbles: true }));
             })()`);
             await waitFor(client, `document.querySelector("#verification-status").dataset.state !== "checking"`);
-            assert.ok(await client.evaluate(`window.__qrspellQrConstructorCalls > 0`));
+            assert.equal(await client.evaluate(`window.__qrspellQrConstructorCalls`), 1);
             assert.equal(await client.evaluate(
                 `document.querySelector("#verification-status span:last-child").textContent.includes("too long")`,
             ), false);

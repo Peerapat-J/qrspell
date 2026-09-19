@@ -667,16 +667,16 @@ async function renderQr() {
 
     try {
         const options = buildQrOptions(settings);
-        currentQr = new window.QRCodeStyling(options);
-        const moduleCount = currentQr?._qr?.getModuleCount?.();
-        if (moduleCount) {
-            options.margin = quietZoneMargin(options.width, moduleCount);
-            currentQr = new window.QRCodeStyling(options);
+        const qr = new window.QRCodeStyling(options);
+        currentQr = qr;
+        await redrawWithExactQuietZone(qr, options.width);
+        if (activeRenderID !== renderID) {
+            return;
         }
         elements.preview.replaceChildren();
-        currentQr.append(elements.preview);
+        qr.append(elements.preview);
 
-        const blob = await currentQr.getRawData("png");
+        const blob = await qr.getRawData("png");
         if (activeRenderID !== renderID) {
             return;
         }
@@ -709,6 +709,19 @@ async function renderQr() {
         disableExport();
         setStatus("error", readableError(error));
     }
+}
+
+async function redrawWithExactQuietZone(qr, exportSize) {
+    const moduleCount = qr._qr?.getModuleCount?.();
+    if (!moduleCount || typeof qr._setupSvg !== "function") {
+        throw new Error("The QR generator could not apply its quiet zone.");
+    }
+
+    // The bundle has already encoded the data. Redraw its SVG with the exact
+    // four-module margin without running the QR encoder and mask search again.
+    qr._options.margin = quietZoneMargin(exportSize, moduleCount);
+    qr._setupSvg();
+    await qr._svgDrawingPromise;
 }
 
 function currentSettings(content) {
