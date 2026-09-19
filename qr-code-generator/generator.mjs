@@ -676,7 +676,7 @@ async function renderQr() {
         elements.preview.replaceChildren();
         qr.append(elements.preview);
 
-        const blob = await qr.getRawData("png");
+        const blob = await pngBlobFromRenderedSvg(qr, options.width);
         if (activeRenderID !== renderID) {
             return;
         }
@@ -723,6 +723,42 @@ async function redrawWithExactQuietZone(qr, exportSize) {
     qr._setupSvg();
     await qr._svgDrawingPromise;
     preserveVisibleCenterImage(qr);
+}
+
+async function pngBlobFromRenderedSvg(qr, exportSize) {
+    // The vendor's PNG path rebuilds the SVG and would discard the adjusted
+    // center image. Rasterize the same finalized SVG shown in the preview.
+    const svgBlob = await qr.getRawData("svg");
+    if (!(svgBlob instanceof Blob)) {
+        throw new Error("The generated QR image could not be exported.");
+    }
+
+    const svg = await svgBlob.text();
+    const image = await new Promise((resolve, reject) => {
+        const preview = new Image();
+        preview.onload = () => resolve(preview);
+        preview.onerror = () => reject(new Error("The generated QR image could not be rendered."));
+        preview.src = `data:image/svg+xml;base64,${btoa(svg)}`;
+    });
+
+    const canvas = document.createElement("canvas");
+    canvas.width = exportSize;
+    canvas.height = exportSize;
+    const context = canvas.getContext("2d");
+    if (!context) {
+        throw new Error("The generated QR image could not be exported.");
+    }
+    context.drawImage(image, 0, 0, exportSize, exportSize);
+
+    return new Promise((resolve, reject) => {
+        canvas.toBlob((blob) => {
+            if (blob) {
+                resolve(blob);
+            } else {
+                reject(new Error("The generated QR image could not be exported."));
+            }
+        }, "image/png");
+    });
 }
 
 function preserveVisibleCenterImage(qr) {

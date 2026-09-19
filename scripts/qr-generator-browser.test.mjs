@@ -697,6 +697,18 @@ test("QR generator controls work together in a real browser", { timeout: 30_000 
                 input.dispatchEvent(new Event("change", { bubbles: true }));
             })()`);
             await waitFor(client, `document.querySelector("#verification-status").dataset.state === "verified"`);
+            await client.evaluate(`(() => {
+                Object.defineProperty(navigator, "clipboard", {
+                    configurable: true,
+                    value: {
+                        async write(items) {
+                            window.__qrspellCopiedPanorama = await items[0].getType("image/png");
+                        },
+                    },
+                });
+                document.querySelector("#copy-qr").click();
+            })()`);
+            await waitFor(client, `window.__qrspellCopiedPanorama instanceof Blob`);
             const rendered = await client.evaluate(`(async () => {
                 const svg = document.querySelector("#qr-preview svg");
                 const image = svg.querySelector("image");
@@ -719,10 +731,23 @@ test("QR generator controls work together in a real browser", { timeout: 30_000 
                         redPixels += 1;
                     }
                 }
+                const exportedImage = await createImageBitmap(window.__qrspellCopiedPanorama);
+                canvas.width = exportedImage.width;
+                canvas.height = exportedImage.height;
+                context2d.drawImage(exportedImage, 0, 0);
+                const exportedPixels = context2d.getImageData(0, 0, canvas.width, canvas.height).data;
+                let exportedRedPixels = 0;
+                for (let index = 0; index < exportedPixels.length; index += 4) {
+                    if (exportedPixels[index] > 180 && exportedPixels[index + 1] < 100 && exportedPixels[index + 2] < 100) {
+                        exportedRedPixels += 1;
+                    }
+                }
+                exportedImage.close();
                 return {
                     width: Number.parseFloat(image.getAttribute("width")),
                     height: Number.parseFloat(image.getAttribute("height")),
                     redPixels,
+                    exportedRedPixels,
                     copyDisabled: document.querySelector("#copy-qr").disabled,
                     downloadDisabled: document.querySelector("#download-qr").disabled,
                 };
@@ -730,6 +755,7 @@ test("QR generator controls work together in a real browser", { timeout: 30_000 
             assert.ok(rendered.width > 0, JSON.stringify(rendered));
             assert.ok(rendered.height > 0, JSON.stringify(rendered));
             assert.ok(rendered.redPixels > 0, JSON.stringify(rendered));
+            assert.equal(rendered.exportedRedPixels, rendered.redPixels, JSON.stringify(rendered));
             assert.equal(rendered.copyDisabled, false);
             assert.equal(rendered.downloadDisabled, false);
         });
