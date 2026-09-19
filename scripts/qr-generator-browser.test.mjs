@@ -185,6 +185,41 @@ test("QR generator controls work together in a real browser", { timeout: 30_000 
             assert.equal(state.after, state.before);
         });
 
+        await context.test("Reset clears the saturation preserved at zero brightness", async () => {
+            await navigate(client, `${site.origin}/qr-code-generator/?test=reset-zero-brightness`);
+            const state = await client.evaluate(`(() => {
+                document.querySelector("#foreground-color-trigger").click();
+                const popover = document.querySelector("#foreground-color-popover");
+                const hue = popover.querySelector('input[type="range"]');
+                const [saturation, brightness] = popover.querySelectorAll(".generator-color-channel input");
+                const color = document.querySelector("#foreground-color");
+                const setChannel = (input, value) => {
+                    input.value = String(value);
+                    input.dispatchEvent(new Event("input", { bubbles: true }));
+                };
+                setChannel(brightness, 80);
+                setChannel(hue, 240);
+                setChannel(saturation, 75);
+                setChannel(brightness, 0);
+                document.querySelector("#reset-generator").click();
+                const afterReset = {
+                    color: color.value,
+                    hue: Number(hue.value),
+                    saturation: Number(saturation.value),
+                    thumbPosition: popover.querySelector(".generator-color-plane-thumb").style.left,
+                };
+                setChannel(brightness, 80);
+                return { afterReset, afterBrightening: color.value.toUpperCase() };
+            })()`);
+            assert.deepEqual(state.afterReset, {
+                color: "#000000",
+                hue: 0,
+                saturation: 0,
+                thumbPosition: "0%",
+            });
+            assert.equal(state.afterBrightening, "#CCCCCC");
+        });
+
         await context.test("exports stay disabled until the rendered QR is verified", async () => {
             await navigate(client, `${site.origin}/qr-code-generator/?test=verification`);
             await client.evaluate(`(() => {

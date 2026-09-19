@@ -1103,6 +1103,7 @@ function resetGenerator() {
     syncAllCustomSelects();
     for (const instance of customColorInstances) {
         instance.hue = 0;
+        instance.saturation = 0;
     }
     centerImageDataUrl = "";
     centerImageValidationFailed = false;
