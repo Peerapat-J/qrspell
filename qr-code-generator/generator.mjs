@@ -9,7 +9,7 @@ import {
     readImageDimensions,
     readabilityWarnings,
     truncateGraphemes,
-} from "./generator-core.mjs?v=20260914b";
+} from "./generator-core.mjs?v=20260920a";
 
 const elements = {
     form: document.querySelector(".generator-controls"),
@@ -493,7 +493,9 @@ function syncColorPicker(instance) {
     if (hsv.saturation > 0) {
         instance.hue = hsv.hue;
     }
-    instance.saturation = hsv.saturation;
+    if (hsv.brightness > 0) {
+        instance.saturation = hsv.saturation;
+    }
     instance.brightness = hsv.brightness;
     instance.swatch.style.background = color;
     instance.currentSwatch.style.background = color;

@@ -152,6 +152,39 @@ test("QR generator controls work together in a real browser", { timeout: 30_000 
             assert.ok(Math.abs(channelState.values[1] - 75) <= 1);
         });
 
+        await context.test("zero brightness preserves the selected saturation", async () => {
+            await navigate(client, `${site.origin}/qr-code-generator/?test=zero-brightness`);
+            const state = await client.evaluate(`(() => {
+                document.querySelector("#foreground-color-trigger").click();
+                const popover = document.querySelector("#foreground-color-popover");
+                const hue = popover.querySelector('input[type="range"]');
+                const [saturation, brightness] = popover.querySelectorAll(".generator-color-channel input");
+                const color = document.querySelector("#foreground-color");
+                const setChannel = (input, value) => {
+                    input.value = String(value);
+                    input.dispatchEvent(new Event("input", { bubbles: true }));
+                };
+                setChannel(brightness, 80);
+                setChannel(hue, 210);
+                setChannel(saturation, 75);
+                const before = color.value;
+                setChannel(brightness, 0);
+                const atBlack = {
+                    color: color.value,
+                    saturation: Number(saturation.value),
+                    thumbPosition: popover.querySelector(".generator-color-plane-thumb").style.left,
+                };
+                setChannel(brightness, 80);
+                return { before, atBlack, after: color.value };
+            })()`);
+            assert.deepEqual(state.atBlack, {
+                color: "#000000",
+                saturation: 75,
+                thumbPosition: "75%",
+            });
+            assert.equal(state.after, state.before);
+        });
+
         await context.test("exports stay disabled until the rendered QR is verified", async () => {
             await navigate(client, `${site.origin}/qr-code-generator/?test=verification`);
             await client.evaluate(`(() => {
