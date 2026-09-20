@@ -8,6 +8,9 @@ import { fileURLToPath } from "node:url";
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const read = (file) => readFileSync(join(root, file), "utf8");
 const homepage = read("index.html");
+const generator = read("qr-code-generator/index.html");
+const generatorRuntime = read("qr-code-generator/generator.mjs");
+const generatorStyles = read("qr-code-generator/generator.css");
 const changelog = read("changelog/index.html");
 const graph = JSON.parse(homepage.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/u)[1])["@graph"];
 const software = graph.find((item) => item["@type"] === "SoftwareApplication");
@@ -25,7 +28,12 @@ const previews = [...homepage.matchAll(/<button\b[^>]*class="app-preview-trigger
     }));
 
 test("page descriptions and social metadata agree", () => {
-    for (const file of ["index.html", "changelog/index.html", "helpcenter/index.html"]) {
+    for (const file of [
+        "index.html",
+        "qr-code-generator/index.html",
+        "changelog/index.html",
+        "helpcenter/index.html",
+    ]) {
         const html = read(file);
         const tags = [...html.matchAll(/<meta\b[^>]*>/gu)].map((match) => attributes(match[0]));
         const description = tags.find((tag) => tag.name === "description").content;
@@ -38,6 +46,100 @@ test("page descriptions and social metadata agree", () => {
             for (const item of graph) assert.equal(item.description, description);
         }
     }
+});
+
+test("QR generator page preserves its product and privacy contract", () => {
+    assert.match(generator, /<title>Free QR Code Generator - Customize &amp; Download \| QRSpell<\/title>/u);
+    assert.match(generator, /<link rel="canonical" href="https:\/\/qrspell\.app\/qr-code-generator\/">/u);
+    assert.equal(
+        [...generator.matchAll(/QR codes are generated locally in your browser\./gu)].length,
+        1,
+    );
+    assert.match(generator, /id="qr-content"/u);
+    assert.match(generator, /id="module-shape"/u);
+    assert.match(generator, /id="finder-shape"/u);
+    assert.match(generator, /id="foreground-color"/u);
+    assert.match(generator, /id="background-color"/u);
+    assert.match(generator, /id="export-size"/u);
+    assert.match(generator, /id="reliability"/u);
+    assert.match(generator, /<option value="M" selected>Standard<\/option>/u);
+    assert.match(generator, /id="center-type"/u);
+    assert.match(generator, /Up to 6 text characters or emoji\./u);
+    assert.doesNotMatch(generator, /id="center-text"[^>]*maxlength=/u);
+    assert.match(generator, /accept="image\/png,image\/jpeg,image\/webp"/u);
+    assert.match(generator, /PNG, JPEG, or WebP up to 5 MB and 4096 × 4096 px \(16\.8 MP\)\./u);
+    assert.match(generator, /id="center-image-error" role="alert"/u);
+    assert.match(generator, /id="copy-qr"/u);
+    assert.match(generator, /id="download-qr"/u);
+    assert.doesNotMatch(generator, /Free browser tool/u);
+    assert.doesNotMatch(generator, /FAQ|Clean URL|URL shortener/iu);
+});
+
+test("QR generator runtime dependencies are bundled locally", () => {
+    assert.match(generator, /\.\.\/assets\/vendor\/qr-code-styling\/qr-code-styling\.js\?v=1\.9\.2/u);
+    assert.match(generator, /\.\.\/assets\/vendor\/jsqr\/jsQR\.js\?v=1\.4\.0/u);
+    assert.doesNotMatch(generator, /(?:unpkg|jsdelivr|cdnjs|registry\.npmjs)\./iu);
+    const stylingBundle = read("assets/vendor/qr-code-styling/qr-code-styling.js");
+    assert.ok(stylingBundle.length > 40_000);
+    assert.match(stylingBundle, /Array\.from\(new TextEncoder\(\)\.encode\(t\)\)/u);
+    assert.match(stylingBundle, /getMode:function\(\)\{return 7\}/u);
+    assert.match(stylingBundle, /t\.put\(26,8\)/u);
+    assert.match(stylingBundle, /7==s\.getMode\(\)/u);
+    assert.doesNotMatch(stylingBundle, /e\.push\(255&r\)/u);
+    const stylingReadme = read("assets/vendor/qr-code-styling/README.md");
+    const documentedChecksum = stylingReadme.match(/Vendored bundle SHA-256: `([a-f0-9]{64})`/u)?.[1];
+    const actualChecksum = createHash("sha256").update(stylingBundle).digest("hex");
+    assert.equal(documentedChecksum, actualChecksum);
+    assert.match(stylingReadme, /UTF-8 ECI assignment 26 in both\s+encoding and capacity calculations/u);
+    assert.ok(readFileSync(join(root, "assets/vendor/jsqr/jsQR.js")).length > 250_000);
+});
+
+test("QR generator page enforces a local-only network boundary", () => {
+    const runtime = [
+        generatorRuntime,
+        read("qr-code-generator/generator-core.mjs"),
+    ].join("\n");
+    assert.match(generator, /http-equiv="Content-Security-Policy"/u);
+    assert.match(generator, /connect-src 'none'/u);
+    assert.doesNotMatch(generator, /cloudflareinsights|data-cf-beacon/iu);
+    assert.doesNotMatch(runtime, /\bfetch\s*\(|XMLHttpRequest|WebSocket|sendBeacon/gu);
+    assert.doesNotMatch(generator, /<form\b[^>]*\baction=/gu);
+});
+
+test("generator select menus use the styled accessible enhancement", () => {
+    assert.match(generatorRuntime, /function enhanceSelects\(\)/u);
+    assert.match(generatorRuntime, /aria-haspopup/u);
+    assert.match(generatorRuntime, /role", "listbox/u);
+    assert.match(generatorRuntime, /ArrowDown/u);
+    assert.match(generatorRuntime, /Escape/u);
+    assert.match(generatorStyles, /\.generator-select-menu/u);
+    assert.match(generatorStyles, /border-radius: 14px/u);
+});
+
+test("generator color controls use the styled accessible picker", () => {
+    assert.match(generatorRuntime, /function enhanceColorInputs\(\)/u);
+    assert.match(generatorRuntime, /role", "dialog/u);
+    assert.match(generatorRuntime, /createColorChannelControl\(`\$\{labelText\} saturation`/u);
+    assert.match(generatorRuntime, /createColorChannelControl\(`\$\{labelText\} brightness`/u);
+    assert.match(generatorRuntime, /plane\.setAttribute\("aria-hidden", "true"\)/u);
+    assert.match(generatorStyles, /\.generator-color-popover/u);
+    assert.match(generatorStyles, /\.generator-color-plane/u);
+    assert.match(generatorStyles, /\.generator-color-presets/u);
+});
+
+test("site navigation and sitemap expose the QR generator", () => {
+    const pages = [
+        "index.html",
+        "qr-code-generator/index.html",
+        "changelog/index.html",
+        "privacy/index.html",
+        "Acknowledgements/index.html",
+        "helpcenter/index.html",
+    ];
+    for (const file of pages) {
+        assert.match(read(file), />QR Generator<\/a>/u, file);
+    }
+    assert.match(read("sitemap.xml"), /<loc>https:\/\/qrspell\.app\/qr-code-generator\/<\/loc>/u);
 });
 
 test("software metadata matches the latest changelog and gallery", () => {
