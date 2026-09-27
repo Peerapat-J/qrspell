@@ -12,12 +12,19 @@ export function loadAnalyticsContract() {
 export function validateAnalyticsContract(contract) {
     const errors = [];
     const transportProperties = contract.provider_transport_property_allowlist;
+    const forbiddenProperties = contract.forbidden_property_names;
+    const forbiddenNames = new Set(Array.isArray(forbiddenProperties) ? forbiddenProperties : []);
 
     if (contract.schema_version !== 1) errors.push("schema_version must be 1.");
     if (!Array.isArray(transportProperties) || transportProperties.length === 0) {
         errors.push("provider_transport_property_allowlist must be a non-empty array.");
     } else if (new Set(transportProperties).size !== transportProperties.length) {
         errors.push("provider_transport_property_allowlist contains duplicates.");
+    }
+    if (!Array.isArray(forbiddenProperties) || forbiddenProperties.length === 0) {
+        errors.push("forbidden_property_names must be a non-empty array.");
+    } else if (new Set(forbiddenProperties).size !== forbiddenProperties.length) {
+        errors.push("forbidden_property_names contains duplicates.");
     }
 
     if (!isPlainObject(contract.events) || Object.keys(contract.events).length === 0) {
@@ -27,6 +34,11 @@ export function validateAnalyticsContract(contract) {
             if (!isPlainObject(definition.properties)) {
                 errors.push(`${eventName} properties must be an object.`);
                 continue;
+            }
+            for (const propertyName of Object.keys(definition.properties)) {
+                if (forbiddenNames.has(propertyName)) {
+                    errors.push(`${eventName} defines forbidden property ${propertyName}.`);
+                }
             }
             for (const requiredName of definition.required ?? []) {
                 if (!Object.hasOwn(definition.properties, requiredName)) {

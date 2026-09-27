@@ -6,6 +6,7 @@ const port = 41741;
 const contract = JSON.parse(readFileSync(new URL("../docs/analytics/event-schema-v1.json", import.meta.url), "utf8"));
 const browserContract = JSON.stringify({
     events: contract.events,
+    forbiddenPropertyNames: contract.forbidden_property_names,
     providerTransportProperties: contract.provider_transport_property_allowlist,
 }).replaceAll("<", "\\u003c");
 
@@ -37,6 +38,7 @@ const html = String.raw`<!doctype html>
     const base = Object.freeze({ analytics_schema_version: 1, environment: 'sandbox' });
     const settings = Object.freeze({ module_shape: 'square', finder_shape: 'rounded', export_size: 512, reliability: 'Q', center_type: 'none' });
     const approvedEvents = new Set(Object.keys(contract.events));
+    const forbiddenPropertyNames = new Set(contract.forbiddenPropertyNames);
     const providerTransportProperties = new Set(contract.providerTransportProperties);
     const log = [];
     let initialized = false;
@@ -56,7 +58,9 @@ const html = String.raw`<!doctype html>
       if (!definition) return false;
       const allowed = new Set(Object.keys(definition.properties));
 
-      if (Object.keys(properties).some((property) => !allowed.has(property))) return false;
+      if (forbiddenPropertyNames.size === 0) return false;
+      if ([...allowed].some((property) => forbiddenPropertyNames.has(property))) return false;
+      if (Object.keys(properties).some((property) => !allowed.has(property) || forbiddenPropertyNames.has(property))) return false;
       if (definition.required.some((property) => !Object.hasOwn(properties, property))) return false;
 
       return Object.entries(properties).every(([property, value]) => {

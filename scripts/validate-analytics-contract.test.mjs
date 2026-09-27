@@ -35,6 +35,26 @@ test("schema declares the only provider transport properties the sanitizer may r
     ]);
 });
 
+test("rejects event definitions that overlap the forbidden property list", () => {
+    const contract = structuredClone(loadAnalyticsContract());
+    contract.events.generator_viewed.properties.url = {};
+
+    const result = validateAnalyticsContract(contract);
+
+    assert.equal(result.ok, false);
+    assert.match(result.errors.join("\n"), /generator_viewed defines forbidden property url\./u);
+});
+
+test("requires a non-empty forbidden property list", () => {
+    const contract = structuredClone(loadAnalyticsContract());
+    contract.forbidden_property_names = [];
+
+    const result = validateAnalyticsContract(contract);
+
+    assert.equal(result.ok, false);
+    assert.match(result.errors.join("\n"), /forbidden_property_names must be a non-empty array\./u);
+});
+
 test("accepts a safe export event", () => {
     const result = validateAnalyticsEvent("qr_exported", {
         analytics_schema_version: 1,
@@ -107,6 +127,10 @@ test("sandbox keeps every privacy-critical PostHog control enabled", () => {
         "respect_dnt: true",
         "disable_compression: true",
         "before_send: sanitizePostHogEvent",
+        "forbiddenPropertyNames: contract.forbidden_property_names",
+        "const forbiddenPropertyNames = new Set(contract.forbiddenPropertyNames)",
+        "if (forbiddenPropertyNames.size === 0) return false",
+        "forbiddenPropertyNames.has(property)",
         "properties.$geoip_disable = true",
         "navigator.globalPrivacyControl === true",
     ]) {
