@@ -1,6 +1,8 @@
+import { createHash } from "node:crypto";
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { dirname, join, normalize, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
+import { analyticsConfig } from "../assets/analytics-config.mjs";
 
 const root = normalize(join(dirname(fileURLToPath(import.meta.url)), ".."));
 const siteOrigin = process.env.SITE_ORIGIN ?? "https://qrspell.app";
@@ -14,6 +16,11 @@ const requiredFiles = [
     "sitemap.xml",
     "styles.css",
     "site.js",
+    ...["analytics", "analytics-config", "analytics-schema", "analytics-contract", "analytics-posthog", "analytics-bootstrap"].map(name => `assets/${name}.mjs`),
+    "assets/vendor/posthog/posthog.mjs",
+    "assets/vendor/posthog/LICENSE",
+    "assets/vendor/posthog/README.md",
+    "assets/vendor/posthog/manifest.json",
     "qr-code-generator/index.html",
     "qr-code-generator/generator.css",
     "qr-code-generator/generator.mjs",
@@ -63,7 +70,10 @@ for (const htmlFile of htmlFiles) {
     validateHtmlReferences(htmlFile, html);
     validateHtmlAnchors(htmlFile, html);
     validateCloudflareBeacon(htmlFile, html);
+    validateAnalyticsBootstrap(htmlFile, html);
 }
+
+validateAnalyticsBundle();
 
 validateCssReferences("styles.css", readText("styles.css"));
 validateRobots(readText("robots.txt"));
@@ -183,7 +193,7 @@ function validateGeneratorCsp(htmlFile, html) {
         ["script-src", ["'self'", "https://static.cloudflareinsights.com/beacon.min.js"]],
         ["style-src", ["'self'", "'unsafe-inline'"]],
         ["img-src", ["'self'", "data:", "blob:"]],
-        ["connect-src", ["https://cloudflareinsights.com/cdn-cgi/rum"]],
+        ["connect-src", ["https://cloudflareinsights.com/cdn-cgi/rum", "https://eu.i.posthog.com"]],
         ...["object-src", "base-uri", "form-action", "frame-src", "media-src"].map((name) => [name, ["'none'"]]),
     ]);
     const actual = policies[0]?.[1].split(";").map((part) => part.trim().split(/\s+/u)).filter(([name]) => name);
@@ -193,7 +203,7 @@ function validateGeneratorCsp(htmlFile, html) {
         expected.delete(name);
         return false;
     }) || expected.size !== 0) {
-        errors.push(`${htmlFile} CSP must allow only local assets and the exact Cloudflare beacon and ingestion URLs.`);
+        errors.push(`${htmlFile} CSP must allow only local assets and the exact Cloudflare beacon and approved ingestion URLs.`);
     }
 }
 
@@ -389,4 +399,27 @@ function normalizeSiteBasePath(basePath) {
     }
 
     return basePath.replace(/\/+$/u, "");
+}
+
+function validateAnalyticsBootstrap(htmlFile, html) {
+    const scripts = [...html.matchAll(/<script\b[^>]*analytics-bootstrap\.mjs[^>]*><\/script>/giu)];
+    const prefix = htmlFile === "index.html" ? "" : "../";
+    const expected = `<script type="module" src="${prefix}assets/analytics-bootstrap.mjs?v=20260928a"></script>`;
+    if (scripts.length !== 1 || scripts[0][0] !== expected) {
+        errors.push(`${htmlFile} must load exactly one local analytics bootstrap module.`);
+    }
+    if (/<script\b[^>]*src=["'][^"']*(?:posthog|analytics-posthog|analytics\.mjs)/iu.test(html)) {
+        errors.push(`${htmlFile} must load analytics only through its optional bootstrap.`);
+    }
+}
+
+function validateAnalyticsBundle() {
+    const manifest = JSON.parse(readText("assets/vendor/posthog/manifest.json"));
+    const checksum = createHash("sha256").update(readFileSync(join(root, "assets/vendor/posthog/posthog.mjs"))).digest("hex");
+    if (manifest.sha256 !== checksum || manifest.version !== "1.434.17" || manifest.entrypoint !== "dist/module.slim.no-external.js") {
+        errors.push("PostHog SDK must match the approved pinned manifest.");
+    }
+    if (analyticsConfig.enabled !== false || analyticsConfig.environment !== "production" || analyticsConfig.token !== "") {
+        errors.push("Production analytics must remain disabled until the production gates pass.");
+    }
 }

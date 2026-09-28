@@ -1338,3 +1338,153 @@ class CdpClient {
         this.socket.close();
     }
 }
+
+test("privacy-safe PostHog foundation audits the real pinned SDK without production ingestion", { timeout: 60_000 }, async context => {
+    let site;
+    let browser;
+    let client;
+    let mode = "allowed";
+    let requests = [];
+    let sdkLoads = 0;
+    const pending = new Set();
+    const interceptionErrors = [];
+    const runtimeErrors = [];
+    const unexpectedExternalRequests = [];
+    const canaries = ["QR42_SECRET", "QUERY42_SECRET", "HASH42_SECRET", "REFERRER42_SECRET", "ERROR42_SECRET"];
+    try {
+        site = await startStaticServer();
+        browser = await startBrowser();
+        const target = await createTarget(browser.debugOrigin, "about:blank");
+        client = await CdpClient.connect(target.webSocketDebuggerUrl);
+        await client.send("Page.enable");
+        await client.send("Runtime.enable");
+        await client.send("Network.enable", { maxPostDataSize: 2_000_000 });
+        // Exercise capture with a normal browser UA; production remains disabled and loopback is excluded.
+        await client.send("Network.setUserAgentOverride", { userAgent: (await client.evaluate("navigator.userAgent")).replace("HeadlessChrome", "Chrome") });
+        await client.send("Network.setCacheDisabled", { cacheDisabled: true });
+        await client.send("Browser.setDownloadBehavior", { behavior: "deny" });
+        client.on("Runtime.exceptionThrown", event => runtimeErrors.push(event));
+        await client.send("Page.addScriptToEvaluateOnNewDocument", { source: `
+            // Simulate a human browser only in this loopback sandbox fixture.
+            Object.defineProperty(navigator, "webdriver", { value: false });
+            const mode = new URL(location.href).searchParams.get('mode');
+            if (mode === 'GPC') Object.defineProperty(navigator, 'globalPrivacyControl', { value: true });
+            if (mode === 'DNT') Object.defineProperty(navigator, 'doNotTrack', { value: '1' });
+            if (mode === 'offline') Object.defineProperty(navigator, 'onLine', { value: false });
+            window.__analyticsCsp = [];
+            document.addEventListener('securitypolicyviolation', event => window.__analyticsCsp.push(event.blockedURI));
+        ` });
+        client.on("Fetch.requestPaused", ({ requestId, request }) => {
+            const operation = (async () => {
+                const url = new URL(request.url);
+                if (url.origin === site.origin) {
+                    if (url.pathname.endsWith("/vendor/posthog/posthog.mjs")) {
+                        sdkLoads++;
+                        if (mode === "SDK blocked") return client.send("Fetch.failRequest", { requestId, errorReason: "BlockedByClient" });
+                    }
+                    if (url.pathname.endsWith("/assets/analytics.mjs") && mode === "wrapper blocked") {
+                        return client.send("Fetch.failRequest", { requestId, errorReason: "BlockedByClient" });
+                    }
+                    return client.send("Fetch.continueRequest", { requestId });
+                }
+                if (url.origin === "https://eu.i.posthog.com") {
+                    requests.push({ ...request });
+                    if (request.method === "POST" && (mode === "endpoint blocked" || mode === "timeout")) return client.send("Fetch.failRequest", { requestId, errorReason: mode === "timeout" ? "TimedOut" : "BlockedByClient" });
+                    return client.send("Fetch.fulfillRequest", {
+                        requestId, responseCode: request.method === "OPTIONS" ? 200 : mode === "HTTP 4xx" ? 400 : mode === "HTTP 5xx" ? 503 : 200,
+                        responseHeaders: [
+                            { name: "Content-Type", value: "application/json" },
+                            { name: "Access-Control-Allow-Origin", value: site.origin },
+                            { name: "Access-Control-Allow-Methods", value: "POST, OPTIONS" },
+                            { name: "Access-Control-Allow-Headers", value: "content-type" },
+                        ],
+                        body: Buffer.from('{"status":1}').toString("base64"),
+                    });
+                }
+                if (url.origin !== "https://static.cloudflareinsights.com" && url.origin !== "https://cloudflareinsights.com") unexpectedExternalRequests.push(request.url);
+                // The fake token and interception protect both provider and Cloudflare endpoints.
+                return client.send("Fetch.failRequest", { requestId, errorReason: "BlockedByClient" });
+            })().catch(error => interceptionErrors.push(error)).finally(() => pending.delete(operation));
+            pending.add(operation);
+        });
+        await client.send("Fetch.enable", { patterns: [{ urlPattern: "*" }] });
+
+        for (mode of ["allowed", "SDK blocked", "wrapper blocked", "endpoint blocked", "timeout", "HTTP 4xx", "HTTP 5xx", "offline", "GPC", "DNT"]) {
+            await context.test(mode, async () => {
+                requests = [];
+                sdkLoads = 0;
+                await client.send("Page.navigate", {
+                    url: `${site.origin}/qr-code-generator/?mode=${encodeURIComponent(mode)}&secret=${canaries[1]}#${canaries[2]}`,
+                    referrer: `${site.origin}/private?secret=${canaries[3]}`,
+                });
+                await waitFor(client, `document.readyState === 'complete' && Boolean(document.querySelector('#module-shape-trigger'))`);
+                assert.equal(sdkLoads, 0, "Disabled production bootstrap must not even load the SDK on localhost");
+                assert.equal(requests.length, 0, "Initialization must not emit automatic events");
+
+                if (mode !== "wrapper blocked") {
+                    const initialized = await client.evaluate(`(async () => {
+                        const { createAnalytics } = await import('../assets/analytics.mjs');
+                        window.__analytics = createAnalytics({ config: { enabled: true, environment: 'sandbox', token: 'phc_QRSpellBrowserTestOnly' } });
+                        return window.__analytics.initAnalytics();
+                    })()`);
+                    assert.equal(initialized, !["SDK blocked", "offline", "GPC", "DNT"].includes(mode));
+                    assert.equal(requests.length, 0, "Real SDK init must not request flags, emit events, or load dependencies");
+                    if (initialized) {
+                        const accepted = await client.evaluate(`(() => [
+                            window.__analytics.captureEvent('site_page_viewed', { route: 'generator' }),
+                            window.__analytics.captureEvent('generator_viewed'),
+                            window.__analytics.captureEvent('generator_viewed', { content: ${JSON.stringify(canaries[0])} }),
+                            window.__analytics.captureEvent('generator_viewed', { error: ${JSON.stringify(canaries[4])} }),
+                        ])()`);
+                        assert.deepEqual(accepted, [true, true, false, false]);
+                        await waitForRequest(() => requests.filter(request => request.method === "POST").length >= 2);
+                        for (const request of requests.filter(request => request.method === "POST")) {
+                            assert.ok(request.postData, "Audit the actual SDK body");
+                            const body = JSON.parse(request.postData);
+                            assert.deepEqual(Object.keys(body).sort(), ["api_key", "batch", "sent_at"]);
+                            assert.equal(body.api_key, "phc_QRSpellBrowserTestOnly");
+                            const events = body.batch;
+                            for (const event of events) {
+                                assert.ok(["site_page_viewed", "generator_viewed"].includes(event.event));
+                                assert.deepEqual(Object.keys(event.properties).sort(), [
+                                    "analytics_schema_version", "environment", "token", "distinct_id", "$lib", "$lib_version", "$process_person_profile", "$geoip_disable",
+                                    ...(event.event === "site_page_viewed" ? ["route"] : []),
+                                ].sort());
+                                assert.equal(event.properties.environment, "sandbox");
+                                assert.equal(event.properties.distinct_id, "$posthog_cookieless");
+                                assert.equal(event.properties.$process_person_profile, false);
+                                assert.equal(event.properties.$geoip_disable, true);
+                            }
+                        }
+                    } else assert.equal(requests.length, 0);
+                }
+
+                await client.evaluate(`(() => {
+                    const input = document.querySelector('#qr-content');
+                    input.value = ${JSON.stringify(canaries[0])};
+                    input.dispatchEvent(new Event('input', { bubbles: true }));
+                })()`);
+                await waitFor(client, `document.querySelector('#verification-status').dataset.state === 'verified'`);
+                await client.evaluate(`(() => {
+                    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { write: async () => { window.__copied42 = true; } } });
+                    document.querySelector('#copy-qr').click();
+                })()`);
+                await waitFor(client, `window.__copied42 && document.querySelector('#verification-status').textContent.includes('PNG copied')`);
+                await client.evaluate(`document.querySelector('#download-qr').click()`);
+                await waitFor(client, `document.querySelector('#verification-status').textContent.includes('PNG downloaded')`);
+                await client.evaluate(`document.querySelector('#reset-generator').click()`);
+                assert.equal(await client.evaluate(`document.querySelector('#qr-content').value`), "");
+                const storage = await client.evaluate(`({ cookies: document.cookie, local: Object.keys(localStorage), session: Object.keys(sessionStorage), csp: window.__analyticsCsp })`);
+                assert.deepEqual(storage, { cookies: "", local: [], session: [], csp: [] });
+                for (const canary of canaries) assert.ok(!JSON.stringify(requests).includes(canary), `Final outbound traffic must exclude ${canary}`);
+                assert.deepEqual(runtimeErrors, [], "No unhandled analytics error may escape into the page");
+                assert.deepEqual(unexpectedExternalRequests, [], "SDK must not load remote dependencies or contact other providers");
+            });
+        }
+        await Promise.all([...pending]);
+        assert.deepEqual(interceptionErrors, []);
+        context.diagnostic("Real vendored SDK tested with fake token and fully intercepted network. Copy uses a clipboard stub; downloads are initiated and denied by the test browser.");
+    } finally {
+        await cleanupTestResources({ client, browser, site });
+    }
+});

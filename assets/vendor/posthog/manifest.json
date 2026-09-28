@@ -1,0 +1,8 @@
+{
+  "package": "posthog-js",
+  "version": "1.434.17",
+  "entrypoint": "dist/module.slim.no-external.js",
+  "tarball": "https://registry.npmjs.org/posthog-js/-/posthog-js-1.434.17.tgz",
+  "integrity": "sha512-R5Tb+YrDnZLVtMKXASXklXpfPwzwJ6YJKvcdL/UWV8OHigLm+ZveXtSsz3zwfidMpmSXHI0g2PJkeArO51qnAA==",
+  "sha256": "ae698f632c333c8afc3e833bd366d359494df6147916dc8dc8af7ae85207550d"
+}

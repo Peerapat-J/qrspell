@@ -28,6 +28,9 @@ jobs:
       - name: Check JavaScript syntax
         run: node --check site.js
 
+      - name: Check generated analytics contract
+        run: node scripts/generate-analytics-schema.mjs --check
+
       - name: Test static site validator and release content
         run: node --test scripts/*.test.mjs
 

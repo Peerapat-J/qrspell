@@ -3,7 +3,7 @@
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
-        <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://static.cloudflareinsights.com/beacon.min.js; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src https://cloudflareinsights.com/cdn-cgi/rum; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'; media-src 'none'">
+        <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://static.cloudflareinsights.com/beacon.min.js; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src https://cloudflareinsights.com/cdn-cgi/rum https://eu.i.posthog.com; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'; media-src 'none'">
         <meta name="referrer" content="strict-origin-when-cross-origin">
         <title>Free QR Code Generator - Customize &amp; Download | QRSpell</title>
         <meta name="description" content="Create a free custom QR code in your browser. Choose colors, shapes, reliability, and a center logo, then verify and download a PNG.">
@@ -41,6 +41,7 @@
                 }
             }
         </script>
+        <script type="module" src="../assets/analytics-bootstrap.mjs?v=20260928a"></script>
     </head>
     <body class="generator-page">
         <header class="site-header">

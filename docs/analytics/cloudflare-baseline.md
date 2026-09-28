@@ -92,3 +92,10 @@ After deployment (pending):
   Download/open its PNG, and Reset. Repeat with ingestion blocked/offline.
 - Inspect Network requests using canary values; confirm no QR, center, image,
   filename, query/fragment, or settings data appears in URLs, headers, or bodies.
+
+## Foundation integration (#42)
+
+The Generator now also loads the optional local analytics bootstrap. Product
+tracking remains disabled; CSP reserves only the exact EU ingestion origin
+`https://eu.i.posthog.com` in addition to the Cloudflare permissions above.
+No PostHog script origin or broad connection permission is added.
