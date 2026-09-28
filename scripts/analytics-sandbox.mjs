@@ -71,8 +71,8 @@ const html = String.raw`<!doctype html>
     }
 
     function validateBusinessProperties(name, properties) {
+      if (!Object.hasOwn(contract.events, name)) return false;
       const definition = contract.events[name];
-      if (!definition) return false;
       const allowed = new Set(Object.keys(definition.properties));
 
       if (forbiddenPropertyNames.size === 0) return false;
@@ -93,8 +93,9 @@ const html = String.raw`<!doctype html>
     }
 
     function sanitizePostHogEvent(event) {
-      const definition = event && contract.events[event.event];
-      if (!definition || !event.properties) return null;
+      if (!event || !Object.hasOwn(contract.events, event.event)) return null;
+      const definition = contract.events[event.event];
+      if (!event.properties) return null;
       if (!hasSafeIdentityTransport(event.properties)) return null;
 
       const businessProperties = {};

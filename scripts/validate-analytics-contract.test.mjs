@@ -104,6 +104,15 @@ test("rejects unknown events and properties", () => {
     assert.match(result.errors.join("\n"), /qr_content/u);
 });
 
+test("treats inherited Object property names as unknown events", () => {
+    for (const eventName of ["toString", "constructor", "__proto__"]) {
+        assert.deepEqual(
+            validateAnalyticsEvent(eventName, {}),
+            { ok: false, errors: [`Unknown event: ${eventName}`] },
+        );
+    }
+});
+
 test("rejects unapproved values and structured data", () => {
     const wrongMethod = validateAnalyticsEvent("qr_exported", {
         analytics_schema_version: 1,
@@ -160,6 +169,8 @@ test("sandbox keeps every privacy-critical PostHog control enabled", () => {
         "properties.distinct_id === '$posthog_cookieless'",
         "properties.$process_person_profile === false",
         "if (!hasSafeIdentityTransport(event.properties)) return null",
+        "if (!Object.hasOwn(contract.events, name)) return false",
+        "if (!event || !Object.hasOwn(contract.events, event.event)) return null",
         "properties.$geoip_disable = true",
         "navigator.globalPrivacyControl === true",
     ]) {

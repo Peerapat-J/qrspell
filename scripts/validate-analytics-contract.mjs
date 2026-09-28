@@ -65,11 +65,11 @@ export function validateAnalyticsContract(contract) {
 
 export function validateAnalyticsEvent(eventName, properties) {
     const contract = loadAnalyticsContract();
-    const definition = contract.events[eventName];
 
-    if (!definition) {
+    if (!isPlainObject(contract.events) || !Object.hasOwn(contract.events, eventName)) {
         return { ok: false, errors: [`Unknown event: ${eventName}`] };
     }
+    const definition = contract.events[eventName];
 
     if (!isPlainObject(properties)) {
         return { ok: false, errors: ["Event properties must be a plain object."] };
