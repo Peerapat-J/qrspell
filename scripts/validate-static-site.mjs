@@ -14,6 +14,15 @@ const requiredFiles = [
     "sitemap.xml",
     "styles.css",
     "site.js",
+    "qr-code-generator/index.html",
+    "qr-code-generator/generator.css",
+    "qr-code-generator/generator.mjs",
+    "qr-code-generator/generator-core.mjs",
+    "assets/vendor/qr-code-styling/qr-code-styling.js",
+    "assets/vendor/qr-code-styling/LICENSE",
+    "assets/vendor/qr-code-styling/README.md",
+    "assets/vendor/jsqr/jsQR.js",
+    "assets/vendor/jsqr/LICENSE",
     "privacy/index.html",
     "legal/index.html",
     "Acknowledgements/index.html",
@@ -23,6 +32,7 @@ const requiredFiles = [
 
 const routes = [
     `${siteBasePath}/`,
+    `${siteBasePath}/qr-code-generator/`,
     `${siteBasePath}/privacy/`,
     `${siteBasePath}/Acknowledgements/`,
     `${siteBasePath}/changelog/`,
@@ -132,6 +142,13 @@ function validateCloudflareBeacon(htmlFile, html) {
     const beaconScripts = [
         ...html.matchAll(/<script\b[^>]*static\.cloudflareinsights\.com\/beacon\.min\.js[^>]*><\/script>/giu),
     ];
+
+    if (htmlFile === "qr-code-generator/index.html") {
+        if (beaconScripts.length !== 0) {
+            errors.push(`${htmlFile} must not include Cloudflare Web Analytics.`);
+        }
+        return;
+    }
 
     if (beaconScripts.length !== 1) {
         errors.push(`${htmlFile} must include exactly one Cloudflare Web Analytics beacon script.`);

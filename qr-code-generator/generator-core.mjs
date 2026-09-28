@@ -1,0 +1,520 @@
+const reliabilityLevels = new Set(["M", "Q", "H"]);
+const exportSizes = new Set([256, 512, 1024]);
+const moduleShapes = new Set(["square", "rounded", "dots"]);
+const finderShapes = new Set(["square", "rounded", "circle"]);
+const maximumQrCapacities = {
+    M: { numeric: 5596, alphanumeric: 3391, byte: 2331, utf8Eci: 2330 },
+    Q: { numeric: 3993, alphanumeric: 2420, byte: 1663, utf8Eci: 1662 },
+    H: { numeric: 3057, alphanumeric: 1852, byte: 1273, utf8Eci: 1272 },
+};
+// Unicode 17 Indic_Conjunct_Break=Consonant and =Linker ranges for GB9c.
+// https://www.unicode.org/Public/17.0.0/ucd/DerivedCoreProperties.txt
+const indicConsonantRanges = [
+    [0x0915, 0x0939], [0x0958, 0x095F], [0x0978, 0x097F],
+    [0x0995, 0x09A8], [0x09AA, 0x09B0], [0x09B2, 0x09B2],
+    [0x09B6, 0x09B9], [0x09DC, 0x09DD], [0x09DF, 0x09DF], [0x09F0, 0x09F1],
+    [0x0A95, 0x0AA8], [0x0AAA, 0x0AB0], [0x0AB2, 0x0AB3],
+    [0x0AB5, 0x0AB9], [0x0AF9, 0x0AF9],
+    [0x0B15, 0x0B28], [0x0B2A, 0x0B30], [0x0B32, 0x0B33],
+    [0x0B35, 0x0B39], [0x0B5C, 0x0B5D], [0x0B5F, 0x0B5F], [0x0B71, 0x0B71],
+    [0x0C15, 0x0C28], [0x0C2A, 0x0C39], [0x0C58, 0x0C5A],
+    [0x0D15, 0x0D3A], [0x1000, 0x102A], [0x103F, 0x103F],
+    [0x1050, 0x1055], [0x105A, 0x105D], [0x1061, 0x1061],
+    [0x1065, 0x1066], [0x106E, 0x1070], [0x1075, 0x1081], [0x108E, 0x108E],
+    [0x1780, 0x17B3], [0x1A20, 0x1A54],
+    [0x1B0B, 0x1B0C], [0x1B13, 0x1B33], [0x1B45, 0x1B4C],
+    [0x1B83, 0x1BA0], [0x1BAE, 0x1BAF], [0x1BBB, 0x1BBD],
+    [0xA989, 0xA98B], [0xA98F, 0xA9B2],
+    [0xA9E0, 0xA9E4], [0xA9E7, 0xA9EF], [0xA9FA, 0xA9FE],
+    [0xAA60, 0xAA6F], [0xAA71, 0xAA73], [0xAA7A, 0xAA7A],
+    [0xAA7E, 0xAA7F], [0xAAE0, 0xAAEA], [0xABC0, 0xABDA],
+    [0x10A00, 0x10A00], [0x10A10, 0x10A13], [0x10A15, 0x10A17],
+    [0x10A19, 0x10A35], [0x11103, 0x11126], [0x11144, 0x11144],
+    [0x11147, 0x11147], [0x11380, 0x11389], [0x1138B, 0x1138B],
+    [0x1138E, 0x1138E], [0x11390, 0x113B5], [0x11900, 0x11906],
+    [0x11909, 0x11909], [0x1190C, 0x11913], [0x11915, 0x11916],
+    [0x11918, 0x1192F], [0x11A00, 0x11A00], [0x11A0B, 0x11A32],
+    [0x11A50, 0x11A50], [0x11A5C, 0x11A83],
+    [0x11F04, 0x11F10], [0x11F12, 0x11F33],
+];
+const indicLinkers = new Set([
+    0x094D, 0x09CD, 0x0ACD, 0x0B4D, 0x0C4D, 0x0D4D, 0x1039,
+    0x17D2, 0x1A60, 0x1B44, 0x1BAB, 0xA9C0, 0xAAF6,
+    0x10A3F, 0x11133, 0x113D0, 0x1193E, 0x11A47, 0x11A99, 0x11F42,
+]);
+
+export function normalizeHexColor(value, fallback = "#000000") {
+    const normalized = String(value ?? "").trim().toUpperCase();
+    return /^#[0-9A-F]{6}$/u.test(normalized) ? normalized : fallback;
+}
+
+export function contrastRatio(foreground, background) {
+    const first = relativeLuminance(normalizeHexColor(foreground));
+    const second = relativeLuminance(normalizeHexColor(background, "#FFFFFF"));
+    const lighter = Math.max(first, second);
+    const darker = Math.min(first, second);
+    return (lighter + 0.05) / (darker + 0.05);
+}
+
+export function hexToHsv(value) {
+    const hex = normalizeHexColor(value);
+    const red = Number.parseInt(hex.slice(1, 3), 16) / 255;
+    const green = Number.parseInt(hex.slice(3, 5), 16) / 255;
+    const blue = Number.parseInt(hex.slice(5, 7), 16) / 255;
+    const maximum = Math.max(red, green, blue);
+    const minimum = Math.min(red, green, blue);
+    const delta = maximum - minimum;
+    let hue = 0;
+
+    if (delta > 0) {
+        if (maximum === red) {
+            hue = 60 * (((green - blue) / delta) % 6);
+        } else if (maximum === green) {
+            hue = 60 * (((blue - red) / delta) + 2);
+        } else {
+            hue = 60 * (((red - green) / delta) + 4);
+        }
+    }
+
+    return {
+        hue: (hue + 360) % 360,
+        saturation: maximum === 0 ? 0 : (delta / maximum) * 100,
+        brightness: maximum * 100,
+    };
+}
+
+export function hsvToHex(hue, saturation, brightness) {
+    const normalizedHue = ((Number(hue) || 0) % 360 + 360) % 360;
+    const normalizedSaturation = clamp(Number(saturation) || 0, 0, 100) / 100;
+    const normalizedBrightness = clamp(Number(brightness) || 0, 0, 100) / 100;
+    const chroma = normalizedBrightness * normalizedSaturation;
+    const secondary = chroma * (1 - Math.abs(((normalizedHue / 60) % 2) - 1));
+    const offset = normalizedBrightness - chroma;
+    let channels;
+
+    if (normalizedHue < 60) channels = [chroma, secondary, 0];
+    else if (normalizedHue < 120) channels = [secondary, chroma, 0];
+    else if (normalizedHue < 180) channels = [0, chroma, secondary];
+    else if (normalizedHue < 240) channels = [0, secondary, chroma];
+    else if (normalizedHue < 300) channels = [secondary, 0, chroma];
+    else channels = [chroma, 0, secondary];
+
+    return `#${channels.map((channel) => (
+        Math.round((channel + offset) * 255).toString(16).padStart(2, "0")
+    )).join("").toUpperCase()}`;
+}
+
+export function detectSupportedImageType(bytes) {
+    const header = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes ?? []);
+    if (header.length >= 8
+        && [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]
+            .every((value, index) => header[index] === value)) {
+        return "image/png";
+    }
+    if (header.length >= 3
+        && header[0] === 0xFF
+        && header[1] === 0xD8
+        && header[2] === 0xFF) {
+        return "image/jpeg";
+    }
+    if (header.length >= 12
+        && String.fromCharCode(...header.slice(0, 4)) === "RIFF"
+        && String.fromCharCode(...header.slice(8, 12)) === "WEBP") {
+        return "image/webp";
+    }
+    return "";
+}
+
+export function hasExpectedImageSignature(mimeType, bytes) {
+    return detectSupportedImageType(bytes) === mimeType;
+}
+
+export function readImageDimensions(bytes, mimeType = detectSupportedImageType(bytes)) {
+    const data = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes ?? []);
+    if (mimeType === "image/png") {
+        if (data.length < 24 || ascii(data, 12, 16) !== "IHDR") {
+            return undefined;
+        }
+        return {
+            width: readUint32BigEndian(data, 16),
+            height: readUint32BigEndian(data, 20),
+        };
+    }
+    if (mimeType === "image/jpeg") {
+        return readJpegDimensions(data);
+    }
+    if (mimeType === "image/webp") {
+        return readWebpDimensions(data);
+    }
+    return undefined;
+}
+
+export function splitGraphemes(value) {
+    const content = String(value ?? "");
+    if (typeof Intl.Segmenter === "function") {
+        const segmenter = new Intl.Segmenter(undefined, { granularity: "grapheme" });
+        return [...segmenter.segment(content)].map(({ segment }) => segment);
+    }
+    return splitGraphemesFallback(content);
+}
+
+export function splitGraphemesFallback(value) {
+    const clusters = [];
+    for (const codePoint of String(value ?? "")) {
+        const current = clusters.at(-1);
+        if (!current || startsNewGrapheme(current, codePoint)) {
+            clusters.push(codePoint);
+        } else {
+            clusters[clusters.length - 1] += codePoint;
+        }
+    }
+    return clusters;
+}
+
+export function truncateGraphemes(value, maximum = 6) {
+    const limit = Math.max(0, Math.floor(Number(maximum) || 0));
+    return splitGraphemes(value).slice(0, limit).join("");
+}
+
+export function fitsQrCapacity(value, reliability) {
+    const content = String(value ?? "");
+    const level = reliabilityLevels.has(reliability) ? reliability : "M";
+    const capacities = maximumQrCapacities[level];
+    if (/^[0-9]*$/u.test(content)) {
+        return content.length <= capacities.numeric;
+    }
+    if (/^[0-9A-Z $%*+\-./:]*$/u.test(content)) {
+        return content.length <= capacities.alphanumeric;
+    }
+    if (content.length > capacities.byte) {
+        return false;
+    }
+    const capacity = /[^\x00-\x7F]/u.test(content) ? capacities.utf8Eci : capacities.byte;
+    return new TextEncoder().encode(content).length <= capacity;
+}
+
+export function readabilityWarnings({
+    foreground,
+    background,
+    content,
+    exportSize,
+    reliability,
+    hasCenterContent,
+}) {
+    const warnings = [];
+    const foregroundLuminance = relativeLuminance(normalizeHexColor(foreground));
+    const backgroundLuminance = relativeLuminance(normalizeHexColor(background, "#FFFFFF"));
+    const ratio = contrastRatio(foreground, background);
+
+    if (foregroundLuminance > backgroundLuminance) {
+        warnings.push("Light QR modules on a dark background may be harder for some scanners to read.");
+    }
+
+    if (ratio < 4.5) {
+        warnings.push(`Increase the color contrast for more reliable scanning (${ratio.toFixed(1)}:1).`);
+    }
+
+    const contentBytes = new TextEncoder().encode(content).length;
+    if (contentBytes > 350 && Number(exportSize) === 256) {
+        warnings.push("This QR is dense. Use a larger export size or shorter content.");
+    }
+
+    if (hasCenterContent && reliability === "M") {
+        warnings.push("Use High or Maximum reliability when adding center content.");
+    }
+
+    return warnings;
+}
+
+export function buildQrOptions(settings) {
+    const exportSize = exportSizes.has(Number(settings.exportSize)) ? Number(settings.exportSize) : 512;
+    const reliability = reliabilityLevels.has(settings.reliability) ? settings.reliability : "M";
+    const moduleShape = moduleShapes.has(settings.moduleShape) ? settings.moduleShape : "square";
+    const finderShape = finderShapes.has(settings.finderShape) ? settings.finderShape : "square";
+    const foreground = normalizeHexColor(settings.foreground);
+    const background = normalizeHexColor(settings.background, "#FFFFFF");
+
+    return {
+        width: exportSize,
+        height: exportSize,
+        type: "svg",
+        data: settings.content,
+        // Conservative fallback; renderQr replaces this with an exact four-module quiet zone.
+        margin: quietZoneMargin(exportSize, 21),
+        qrOptions: {
+            errorCorrectionLevel: reliability,
+        },
+        dotsOptions: {
+            color: foreground,
+            type: moduleShape,
+            roundSize: true,
+        },
+        cornersSquareOptions: {
+            color: foreground,
+            type: finderSquareType(finderShape),
+        },
+        cornersDotOptions: {
+            color: foreground,
+            type: finderDotType(finderShape),
+        },
+        backgroundOptions: {
+            color: background,
+        },
+        image: settings.centerImage || undefined,
+        imageOptions: {
+            hideBackgroundDots: true,
+            imageSize: clamp(Number(settings.centerSize) || 0.24, 0.16, 0.36),
+            margin: Math.max(2, Math.round(exportSize * 0.008)),
+            // Center images are already local data URLs, so the vendor does not need XHR conversion.
+            saveAsBlob: false,
+        },
+    };
+}
+
+export function quietZoneMargin(exportSize, moduleCount) {
+    const size = exportSizes.has(Number(exportSize)) ? Number(exportSize) : 512;
+    const count = Number(moduleCount);
+    const safeModuleCount = Number.isFinite(count) && count >= 21 ? count : 21;
+    return (size * 4) / (safeModuleCount + 8);
+}
+
+export function createTextBadgeDataUrl(text, foreground, background) {
+    const content = truncateGraphemes(String(text ?? "").trim(), 6);
+    if (!content) {
+        return "";
+    }
+
+    const symbolCount = splitGraphemes(content).length;
+    const escapedText = escapeXml(content);
+    const fill = normalizeHexColor(foreground);
+    const surface = normalizeHexColor(background, "#FFFFFF");
+    const fontSize = symbolCount === 1 ? 224 : symbolCount === 2 ? 176 : symbolCount <= 4 ? 96 : 76;
+    const height = symbolCount <= 2 ? 256 : 168;
+    const textWidth = splitGraphemes(content)
+        .reduce((total, grapheme) => total + graphemeWidthUnits(grapheme), 0) * fontSize;
+    const width = Math.round(clamp(textWidth + 32, symbolCount === 1 ? 256 : 224, 520));
+    const cornerRadius = symbolCount <= 2 ? 48 : 34;
+    const textY = Math.round((height / 2) + (fontSize * 0.035));
+    const svg = [
+        `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">`,
+        `<rect x="8" y="8" width="${width - 16}" height="${height - 16}" rx="${cornerRadius}" fill="${surface}"/>`,
+        `<text x="${width / 2}" y="${textY}" text-anchor="middle" dominant-baseline="middle" `,
+        `font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif" font-size="${fontSize}" `,
+        `font-weight="700" fill="${fill}">${escapedText}</text>`,
+        "</svg>",
+    ].join("");
+
+    return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+}
+
+function finderSquareType(shape) {
+    if (shape === "circle") {
+        return "dot";
+    }
+    if (shape === "rounded") {
+        return "extra-rounded";
+    }
+    return "square";
+}
+
+function finderDotType(shape) {
+    return shape === "square" ? "square" : "dot";
+}
+
+function relativeLuminance(hex) {
+    const channels = [1, 3, 5].map((offset) => Number.parseInt(hex.slice(offset, offset + 2), 16) / 255);
+    const [red, green, blue] = channels.map((channel) => (
+        channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4
+    ));
+    return (0.2126 * red) + (0.7152 * green) + (0.0722 * blue);
+}
+
+function escapeXml(value) {
+    return value
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&apos;");
+}
+
+function graphemeWidthUnits(grapheme) {
+    if (/\p{Emoji_Presentation}|\p{Extended_Pictographic}/u.test(grapheme)
+        || /[\u1100-\u115F\u2E80-\uA4CF\uAC00-\uD7A3\uF900-\uFAFF\uFE10-\uFE6F\uFF01-\uFF60\uFFE0-\uFFE6]/u
+            .test(grapheme)) {
+        return 1;
+    }
+    if (/^[\s]$/u.test(grapheme)) return 0.35;
+    if (/^[ilI1.,'|!]$/u.test(grapheme)) return 0.35;
+    if (/^[MW@#%&]$/u.test(grapheme)) return 0.9;
+    if (/^[\x00-\x7F]$/u.test(grapheme)) return 0.62;
+    return 0.9;
+}
+
+function startsNewGrapheme(cluster, codePoint) {
+    const previous = [...cluster].at(-1);
+    if (previous === "\r" && codePoint === "\n") return false;
+    if (isControlCodePoint(previous) || isControlCodePoint(codePoint)) return true;
+    if (isGraphemeExtension(codePoint) || codePoint === "\u200D" || previous === "\u200D") return false;
+    if (continuesIndicConjunct(cluster, codePoint)) return false;
+    if (continuesHangulSyllable(previous, codePoint)) return false;
+    if (isRegionalIndicator(previous) && isRegionalIndicator(codePoint)) {
+        const regionalCount = [...cluster].filter(isRegionalIndicator).length;
+        return regionalCount % 2 === 0;
+    }
+    return true;
+}
+
+function continuesIndicConjunct(cluster, codePoint) {
+    if (!isIndicConsonant(codePoint)) return false;
+
+    let hasLinker = false;
+    for (const previous of [...cluster].reverse()) {
+        if (indicLinkers.has(previous.codePointAt(0))) {
+            hasLinker = true;
+        } else if (isGraphemeExtension(previous) || previous === "\u200D") {
+            continue;
+        } else {
+            return hasLinker && isIndicConsonant(previous);
+        }
+    }
+    return false;
+}
+
+function isIndicConsonant(codePoint) {
+    const value = codePoint.codePointAt(0);
+    let first = 0;
+    let last = indicConsonantRanges.length - 1;
+    while (first <= last) {
+        const middle = Math.floor((first + last) / 2);
+        const [start, end] = indicConsonantRanges[middle];
+        if (value < start) last = middle - 1;
+        else if (value > end) first = middle + 1;
+        else return true;
+    }
+    return false;
+}
+
+function isControlCodePoint(codePoint) {
+    return /^[\u0000-\u001F\u007F-\u009F]$/u.test(codePoint);
+}
+
+function isGraphemeExtension(codePoint) {
+    const value = codePoint.codePointAt(0);
+    return /\p{Mark}/u.test(codePoint)
+        || (value >= 0xFE00 && value <= 0xFE0F)
+        || (value >= 0x1F3FB && value <= 0x1F3FF)
+        || (value >= 0xE0100 && value <= 0xE01EF)
+        || (value >= 0xE0020 && value <= 0xE007F);
+}
+
+function isRegionalIndicator(codePoint) {
+    const value = codePoint.codePointAt(0);
+    return value >= 0x1F1E6 && value <= 0x1F1FF;
+}
+
+function continuesHangulSyllable(previous, codePoint) {
+    const first = hangulType(previous.codePointAt(0));
+    const second = hangulType(codePoint.codePointAt(0));
+    return (first === "L" && ["L", "V", "LV", "LVT"].includes(second))
+        || (["LV", "V"].includes(first) && ["V", "T"].includes(second))
+        || (["LVT", "T"].includes(first) && second === "T");
+}
+
+function hangulType(value) {
+    if ((value >= 0x1100 && value <= 0x115F) || (value >= 0xA960 && value <= 0xA97C)) return "L";
+    if ((value >= 0x1160 && value <= 0x11A7) || (value >= 0xD7B0 && value <= 0xD7C6)) return "V";
+    if ((value >= 0x11A8 && value <= 0x11FF) || (value >= 0xD7CB && value <= 0xD7FB)) return "T";
+    if (value >= 0xAC00 && value <= 0xD7A3) return (value - 0xAC00) % 28 === 0 ? "LV" : "LVT";
+    return "";
+}
+
+function readJpegDimensions(data) {
+    let offset = 2;
+    const startOfFrameMarkers = new Set([
+        0xC0, 0xC1, 0xC2, 0xC3, 0xC5, 0xC6, 0xC7,
+        0xC9, 0xCA, 0xCB, 0xCD, 0xCE, 0xCF,
+    ]);
+
+    while (offset + 3 < data.length) {
+        while (data[offset] === 0xFF) offset += 1;
+        const marker = data[offset];
+        offset += 1;
+        if (marker === 0xD9 || marker === 0xDA) return undefined;
+        if (marker === 0x01 || (marker >= 0xD0 && marker <= 0xD7)) continue;
+        if (offset + 1 >= data.length) return undefined;
+        const segmentLength = (data[offset] << 8) | data[offset + 1];
+        if (segmentLength < 2 || offset + segmentLength > data.length) return undefined;
+        if (startOfFrameMarkers.has(marker)) {
+            if (segmentLength < 7) return undefined;
+            return {
+                width: (data[offset + 5] << 8) | data[offset + 6],
+                height: (data[offset + 3] << 8) | data[offset + 4],
+            };
+        }
+        offset += segmentLength;
+    }
+    return undefined;
+}
+
+function readWebpDimensions(data) {
+    let offset = 12;
+    while (offset + 8 <= data.length) {
+        const chunkType = ascii(data, offset, offset + 4);
+        const chunkLength = readUint32LittleEndian(data, offset + 4);
+        const chunkStart = offset + 8;
+        if (chunkStart + chunkLength > data.length) return undefined;
+
+        if (chunkType === "VP8X" && chunkLength >= 10) {
+            return {
+                width: 1 + readUint24LittleEndian(data, chunkStart + 4),
+                height: 1 + readUint24LittleEndian(data, chunkStart + 7),
+            };
+        }
+        if (chunkType === "VP8L" && chunkLength >= 5 && data[chunkStart] === 0x2F) {
+            return {
+                width: 1 + data[chunkStart + 1] + ((data[chunkStart + 2] & 0x3F) << 8),
+                height: 1 + (data[chunkStart + 2] >> 6)
+                    + (data[chunkStart + 3] << 2)
+                    + ((data[chunkStart + 4] & 0x0F) << 10),
+            };
+        }
+        if (chunkType === "VP8 " && chunkLength >= 10
+            && data[chunkStart + 3] === 0x9D
+            && data[chunkStart + 4] === 0x01
+            && data[chunkStart + 5] === 0x2A) {
+            return {
+                width: ((data[chunkStart + 7] << 8) | data[chunkStart + 6]) & 0x3FFF,
+                height: ((data[chunkStart + 9] << 8) | data[chunkStart + 8]) & 0x3FFF,
+            };
+        }
+        offset = chunkStart + chunkLength + (chunkLength % 2);
+    }
+    return undefined;
+}
+
+function ascii(data, start, end) {
+    return String.fromCharCode(...data.slice(start, end));
+}
+
+function readUint24LittleEndian(data, offset) {
+    return data[offset] | (data[offset + 1] << 8) | (data[offset + 2] << 16);
+}
+
+function readUint32BigEndian(data, offset) {
+    return ((data[offset] * 0x1000000)
+        + (data[offset + 1] << 16)
+        + (data[offset + 2] << 8)
+        + data[offset + 3]) >>> 0;
+}
+
+function readUint32LittleEndian(data, offset) {
+    return (data[offset]
+        + (data[offset + 1] << 8)
+        + (data[offset + 2] << 16)
+        + (data[offset + 3] * 0x1000000)) >>> 0;
+}
+
+function clamp(value, minimum, maximum) {
+    return Math.min(Math.max(value, minimum), maximum);
+}
