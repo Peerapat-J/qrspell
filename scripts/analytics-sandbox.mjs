@@ -65,6 +65,11 @@ const html = String.raw`<!doctype html>
         && new Set(rule.enum).size === rule.enum.length;
     }
 
+    function hasSafeIdentityTransport(properties) {
+      return properties.distinct_id === '$posthog_cookieless'
+        && properties.$process_person_profile === false;
+    }
+
     function validateBusinessProperties(name, properties) {
       const definition = contract.events[name];
       if (!definition) return false;
@@ -90,6 +95,7 @@ const html = String.raw`<!doctype html>
     function sanitizePostHogEvent(event) {
       const definition = event && contract.events[event.event];
       if (!definition || !event.properties) return null;
+      if (!hasSafeIdentityTransport(event.properties)) return null;
 
       const businessProperties = {};
       for (const property of Object.keys(definition.properties)) {

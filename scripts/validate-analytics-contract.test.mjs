@@ -157,6 +157,9 @@ test("sandbox keeps every privacy-critical PostHog control enabled", () => {
         "function isBoundedRule(rule)",
         "Object.values(definition.properties).some((rule) => !isBoundedRule(rule))",
         "if (!Array.isArray(definition.required)) return false",
+        "properties.distinct_id === '$posthog_cookieless'",
+        "properties.$process_person_profile === false",
+        "if (!hasSafeIdentityTransport(event.properties)) return null",
         "properties.$geoip_disable = true",
         "navigator.globalPrivacyControl === true",
     ]) {
