@@ -74,6 +74,9 @@ const html = String.raw`<!doctype html>
       if ([...allowed].some((property) => forbiddenPropertyNames.has(property))) return false;
       if (Object.values(definition.properties).some((rule) => !isBoundedRule(rule))) return false;
       if (Object.keys(properties).some((property) => !allowed.has(property) || forbiddenPropertyNames.has(property))) return false;
+      if (!Array.isArray(definition.required)) return false;
+      if (new Set(definition.required).size !== definition.required.length) return false;
+      if (definition.required.some((property) => typeof property !== 'string' || !allowed.has(property))) return false;
       if (definition.required.some((property) => !Object.hasOwn(properties, property))) return false;
 
       return Object.entries(properties).every(([property, value]) => {

@@ -68,6 +68,16 @@ test("requires every analytics property to use a bounded scalar rule", () => {
     );
 });
 
+test("requires every event definition to declare required properties as an array", () => {
+    const contract = structuredClone(loadAnalyticsContract());
+    delete contract.events.generator_viewed.required;
+
+    const result = validateAnalyticsContract(contract);
+
+    assert.equal(result.ok, false);
+    assert.match(result.errors.join("\n"), /generator_viewed required must be an array\./u);
+});
+
 test("accepts a safe export event", () => {
     const result = validateAnalyticsEvent("qr_exported", {
         analytics_schema_version: 1,
@@ -146,6 +156,7 @@ test("sandbox keeps every privacy-critical PostHog control enabled", () => {
         "forbiddenPropertyNames.has(property)",
         "function isBoundedRule(rule)",
         "Object.values(definition.properties).some((rule) => !isBoundedRule(rule))",
+        "if (!Array.isArray(definition.required)) return false",
         "properties.$geoip_disable = true",
         "navigator.globalPrivacyControl === true",
     ]) {

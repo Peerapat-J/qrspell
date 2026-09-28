@@ -43,9 +43,18 @@ export function validateAnalyticsContract(contract) {
                     errors.push(`${eventName}.${propertyName} must define exactly one scalar const or non-empty scalar enum.`);
                 }
             }
-            for (const requiredName of definition.required ?? []) {
-                if (!Object.hasOwn(definition.properties, requiredName)) {
-                    errors.push(`${eventName} requires undefined property ${requiredName}.`);
+            if (!Array.isArray(definition.required)) {
+                errors.push(`${eventName} required must be an array.`);
+            } else {
+                if (new Set(definition.required).size !== definition.required.length) {
+                    errors.push(`${eventName} required contains duplicates.`);
+                }
+                for (const requiredName of definition.required) {
+                    if (typeof requiredName !== "string" || requiredName.length === 0) {
+                        errors.push(`${eventName} required entries must be non-empty strings.`);
+                    } else if (!Object.hasOwn(definition.properties, requiredName)) {
+                        errors.push(`${eventName} requires undefined property ${requiredName}.`);
+                    }
                 }
             }
         }
@@ -64,6 +73,10 @@ export function validateAnalyticsEvent(eventName, properties) {
 
     if (!isPlainObject(properties)) {
         return { ok: false, errors: ["Event properties must be a plain object."] };
+    }
+
+    if (!Array.isArray(definition.required)) {
+        return { ok: false, errors: [`${eventName} required must be an array.`] };
     }
 
     const errors = [];
