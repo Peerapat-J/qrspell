@@ -53,6 +53,16 @@ const html = String.raw`<!doctype html>
       return typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean';
     }
 
+    function isPlainObject(value) {
+      if (value === null || typeof value !== 'object' || Array.isArray(value)) return false;
+      try {
+        const prototype = Object.getPrototypeOf(value);
+        return prototype === Object.prototype || prototype === null;
+      } catch {
+        return false;
+      }
+    }
+
     function isBoundedRule(rule) {
       if (!rule || typeof rule !== 'object' || Array.isArray(rule)) return false;
       const hasConst = Object.hasOwn(rule, 'const');
@@ -71,6 +81,7 @@ const html = String.raw`<!doctype html>
     }
 
     function validateBusinessProperties(name, properties) {
+      if (!isPlainObject(properties)) return false;
       if (!Object.hasOwn(contract.events, name)) return false;
       const definition = contract.events[name];
       const allowed = new Set(Object.keys(definition.properties));
@@ -95,7 +106,7 @@ const html = String.raw`<!doctype html>
     function sanitizePostHogEvent(event) {
       if (!event || !Object.hasOwn(contract.events, event.event)) return null;
       const definition = contract.events[event.event];
-      if (!event.properties) return null;
+      if (!isPlainObject(event.properties)) return null;
       if (!hasSafeIdentityTransport(event.properties)) return null;
 
       const businessProperties = {};
@@ -122,18 +133,19 @@ const html = String.raw`<!doctype html>
     }
 
     function safeCapture(name, properties) {
-      if (!approvedEvents.has(name) || !validateBusinessProperties(name, properties)) {
-        status.textContent = 'Analytics event rejected by the local contract.';
+      try {
+        if (!approvedEvents.has(name) || !validateBusinessProperties(name, properties)) {
+          status.textContent = 'Analytics event rejected by the local contract.';
+          return false;
+        }
+        window.posthog.capture(name, properties, { send_instantly: true });
+        log.push({ name, properties });
+        status.textContent = JSON.stringify(log, null, 2);
+        return true;
+      } catch {
+        status.textContent = 'Analytics failed safely. The product action can continue.';
         return false;
       }
-      try {
-        window.posthog.capture(name, properties, { send_instantly: true });
-      } catch {
-        // Analytics failure must never block the product action being measured.
-      }
-      log.push({ name, properties });
-      status.textContent = JSON.stringify(log, null, 2);
-      return true;
     }
 
     document.querySelector('#initialize').addEventListener('click', () => {
