@@ -35,9 +35,12 @@ export function validateAnalyticsContract(contract) {
                 errors.push(`${eventName} properties must be an object.`);
                 continue;
             }
-            for (const propertyName of Object.keys(definition.properties)) {
+            for (const [propertyName, rule] of Object.entries(definition.properties)) {
                 if (forbiddenNames.has(propertyName)) {
                     errors.push(`${eventName} defines forbidden property ${propertyName}.`);
+                }
+                if (!isBoundedRule(rule)) {
+                    errors.push(`${eventName}.${propertyName} must define exactly one scalar const or non-empty scalar enum.`);
                 }
             }
             for (const requiredName of definition.required ?? []) {
@@ -106,6 +109,18 @@ function isScalar(value) {
     return typeof value === "string"
         || typeof value === "number"
         || typeof value === "boolean";
+}
+
+function isBoundedRule(rule) {
+    if (!isPlainObject(rule)) return false;
+    const hasConst = Object.hasOwn(rule, "const");
+    const hasEnum = Object.hasOwn(rule, "enum");
+    if (hasConst === hasEnum) return false;
+    if (hasConst) return isScalar(rule.const);
+    return Array.isArray(rule.enum)
+        && rule.enum.length > 0
+        && rule.enum.every(isScalar)
+        && new Set(rule.enum).size === rule.enum.length;
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {

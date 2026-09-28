@@ -53,6 +53,18 @@ const html = String.raw`<!doctype html>
       return typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean';
     }
 
+    function isBoundedRule(rule) {
+      if (!rule || typeof rule !== 'object' || Array.isArray(rule)) return false;
+      const hasConst = Object.hasOwn(rule, 'const');
+      const hasEnum = Object.hasOwn(rule, 'enum');
+      if (hasConst === hasEnum) return false;
+      if (hasConst) return isScalar(rule.const);
+      return Array.isArray(rule.enum)
+        && rule.enum.length > 0
+        && rule.enum.every(isScalar)
+        && new Set(rule.enum).size === rule.enum.length;
+    }
+
     function validateBusinessProperties(name, properties) {
       const definition = contract.events[name];
       if (!definition) return false;
@@ -60,6 +72,7 @@ const html = String.raw`<!doctype html>
 
       if (forbiddenPropertyNames.size === 0) return false;
       if ([...allowed].some((property) => forbiddenPropertyNames.has(property))) return false;
+      if (Object.values(definition.properties).some((rule) => !isBoundedRule(rule))) return false;
       if (Object.keys(properties).some((property) => !allowed.has(property) || forbiddenPropertyNames.has(property))) return false;
       if (definition.required.some((property) => !Object.hasOwn(properties, property))) return false;
 

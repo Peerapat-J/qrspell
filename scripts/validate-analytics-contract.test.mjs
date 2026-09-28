@@ -55,6 +55,19 @@ test("requires a non-empty forbidden property list", () => {
     assert.match(result.errors.join("\n"), /forbidden_property_names must be a non-empty array\./u);
 });
 
+test("requires every analytics property to use a bounded scalar rule", () => {
+    const contract = structuredClone(loadAnalyticsContract());
+    contract.events.generator_viewed.properties.note = {};
+
+    const result = validateAnalyticsContract(contract);
+
+    assert.equal(result.ok, false);
+    assert.match(
+        result.errors.join("\n"),
+        /generator_viewed\.note must define exactly one scalar const or non-empty scalar enum\./u,
+    );
+});
+
 test("accepts a safe export event", () => {
     const result = validateAnalyticsEvent("qr_exported", {
         analytics_schema_version: 1,
@@ -131,6 +144,8 @@ test("sandbox keeps every privacy-critical PostHog control enabled", () => {
         "const forbiddenPropertyNames = new Set(contract.forbiddenPropertyNames)",
         "if (forbiddenPropertyNames.size === 0) return false",
         "forbiddenPropertyNames.has(property)",
+        "function isBoundedRule(rule)",
+        "Object.values(definition.properties).some((rule) => !isBoundedRule(rule))",
         "properties.$geoip_disable = true",
         "navigator.globalPrivacyControl === true",
     ]) {
