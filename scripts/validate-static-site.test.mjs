@@ -12,13 +12,19 @@ const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const fixture = mkdtempSync(join(tmpdir(), "qrspell-canonical-test-"));
 after(() => rmSync(fixture, { recursive: true, force: true }));
 
-// Only the fixture's homepage is changed; other site files are read through symlinks.
+// The fixture changes HTML only; other site files are read through symlinks.
 for (const entry of readdirSync(root, { withFileTypes: true })) {
-    if ([".git", "scripts", "index.html"].includes(entry.name)) {
+    if ([".git", "scripts", "index.html", "qr-code-generator"].includes(entry.name)) {
         continue;
     }
     symlinkSync(join(root, entry.name), join(fixture, entry.name), entry.isDirectory() ? "dir" : "file");
 }
+mkdirSync(join(fixture, "qr-code-generator"));
+for (const entry of readdirSync(join(root, "qr-code-generator"))) {
+    if (entry !== "index.html") symlinkSync(join(root, "qr-code-generator", entry), join(fixture, "qr-code-generator", entry));
+}
+const generator = readFileSync(join(root, "qr-code-generator/index.html"), "utf8");
+writeFileSync(join(fixture, "qr-code-generator/index.html"), generator);
 mkdirSync(join(fixture, "scripts"));
 const validator = join(fixture, "scripts", "validate-static-site.mjs");
 copyFileSync(join(root, "scripts", "validate-static-site.mjs"), validator);
@@ -55,3 +61,39 @@ for (const [name, link, expectedStatus] of cases) {
         }
     });
 }
+
+test("Generator analytics coverage and CSP reject unsafe regressions", async (context) => {
+    writeFileSync(join(fixture, "index.html"), homepage);
+    const beacon = generator.match(/<script\b[^>]*data-cf-beacon='[^']+'[^>]*><\/script>/u)[0];
+    const mutations = [
+        ["missing beacon", generator.replace(beacon, ""), /exactly one Cloudflare/u],
+        ["duplicate beacon", generator.replace(beacon, beacon + beacon), /exactly one Cloudflare/u],
+        ["wrong token", generator.replace("e43189ed6f5c43d29472b9b18c73b226", "wrong"), /token does not match/u],
+        ["automatic SPA measurement", generator.replace('"spa":false', '"spa":true'), /configuration must contain only/u],
+        ["unexpected forwarding", generator.replace('"spa":false', '"spa":false,"forward":{"url":"https://example.com/"}'), /configuration must contain only/u],
+        ["wildcard script source", generator.replace("https://static.cloudflareinsights.com/beacon.min.js", "https://*.cloudflareinsights.com"), /exactly one Cloudflare|CSP must allow only/u],
+        ["whole script origin", generator.replace("script-src 'self' https://static.cloudflareinsights.com/beacon.min.js", "script-src 'self' https://static.cloudflareinsights.com"), /CSP must allow only/u],
+        ["broad connections", generator.replace("connect-src https://cloudflareinsights.com/cdn-cgi/rum", "connect-src https:"), /CSP must allow only/u],
+        ["whole ingestion origin", generator.replace("connect-src https://cloudflareinsights.com/cdn-cgi/rum", "connect-src https://cloudflareinsights.com"), /CSP must allow only/u],
+        ["local connections", generator.replace("connect-src https://cloudflareinsights.com/cdn-cgi/rum", "connect-src 'self' https://cloudflareinsights.com/cdn-cgi/rum"), /CSP must allow only/u],
+        ["duplicate source", generator.replace("script-src 'self' https://static.cloudflareinsights.com/beacon.min.js", "script-src 'self' 'self'"), /CSP must allow only/u],
+        ["missing CSP", generator.replace(/<meta http-equiv="Content-Security-Policy"[^>]*>/u, ""), /CSP must allow only/u],
+        ["duplicate directive", generator.replace("default-src 'none'", "default-src 'none'; default-src 'none'"), /CSP must allow only/u],
+    ];
+    try {
+        for (const [name, html, error] of mutations) {
+            await context.test(name, () => {
+                writeFileSync(join(fixture, "qr-code-generator/index.html"), html);
+                const result = spawnSync(process.execPath, [validator], {
+                    encoding: "utf8",
+                    env: { ...process.env, SITE_ORIGIN: "https://qrspell.app", SITE_BASE_PATH: "/" },
+                });
+                assert.ifError(result.error);
+                assert.equal(result.status, 1, result.stdout + result.stderr);
+                assert.match(result.stderr, error);
+            });
+        }
+    } finally {
+        writeFileSync(join(fixture, "qr-code-generator/index.html"), generator);
+    }
+});

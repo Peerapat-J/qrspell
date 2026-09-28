@@ -94,14 +94,17 @@ test("QR generator runtime dependencies are bundled locally", () => {
     assert.ok(readFileSync(join(root, "assets/vendor/jsqr/jsQR.js")).length > 250_000);
 });
 
-test("QR generator page enforces a local-only network boundary", () => {
+test("QR generation stays local with narrowly scoped optional traffic analytics", () => {
     const runtime = [
         generatorRuntime,
         read("qr-code-generator/generator-core.mjs"),
     ].join("\n");
     assert.match(generator, /http-equiv="Content-Security-Policy"/u);
-    assert.match(generator, /connect-src 'none'/u);
-    assert.doesNotMatch(generator, /cloudflareinsights|data-cf-beacon/iu);
+    assert.match(generator, /script-src 'self' https:\/\/static\.cloudflareinsights\.com\/beacon\.min\.js;/u);
+    assert.match(generator, /connect-src https:\/\/cloudflareinsights\.com\/cdn-cgi\/rum;/u);
+    const scripts = [...generator.matchAll(/<script\b[^>]*data-cf-beacon='([^']+)'[^>]*><\/script>/gu)];
+    assert.equal(scripts.length, 1);
+    assert.deepEqual(JSON.parse(scripts[0][1]), { token: "e43189ed6f5c43d29472b9b18c73b226", spa: false });
     assert.doesNotMatch(runtime, /\bfetch\s*\(|XMLHttpRequest|WebSocket|sendBeacon/gu);
     assert.doesNotMatch(generator, /<form\b[^>]*\baction=/gu);
 });

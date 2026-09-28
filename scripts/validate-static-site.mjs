@@ -143,13 +143,6 @@ function validateCloudflareBeacon(htmlFile, html) {
         ...html.matchAll(/<script\b[^>]*static\.cloudflareinsights\.com\/beacon\.min\.js[^>]*><\/script>/giu),
     ];
 
-    if (htmlFile === "qr-code-generator/index.html") {
-        if (beaconScripts.length !== 0) {
-            errors.push(`${htmlFile} must not include Cloudflare Web Analytics.`);
-        }
-        return;
-    }
-
     if (beaconScripts.length !== 1) {
         errors.push(`${htmlFile} must include exactly one Cloudflare Web Analytics beacon script.`);
         return;
@@ -173,6 +166,34 @@ function validateCloudflareBeacon(htmlFile, html) {
 
     if (parsedBeaconConfig.token !== cloudflareBeaconToken) {
         errors.push(`${htmlFile} Cloudflare Web Analytics token does not match the expected token.`);
+    }
+
+    if (htmlFile === "qr-code-generator/index.html") {
+        if (Object.keys(parsedBeaconConfig).sort().join(",") !== "spa,token" || parsedBeaconConfig.spa !== false) {
+            errors.push(`${htmlFile} beacon configuration must contain only the site token and spa: false.`);
+        }
+        validateGeneratorCsp(htmlFile, html);
+    }
+}
+
+function validateGeneratorCsp(htmlFile, html) {
+    const policies = [...html.matchAll(/<meta\b[^>]*http-equiv="Content-Security-Policy"[^>]*content="([^"]*)"[^>]*>/giu)];
+    const expected = new Map([
+        ["default-src", ["'none'"]],
+        ["script-src", ["'self'", "https://static.cloudflareinsights.com/beacon.min.js"]],
+        ["style-src", ["'self'", "'unsafe-inline'"]],
+        ["img-src", ["'self'", "data:", "blob:"]],
+        ["connect-src", ["https://cloudflareinsights.com/cdn-cgi/rum"]],
+        ...["object-src", "base-uri", "form-action", "frame-src", "media-src"].map((name) => [name, ["'none'"]]),
+    ]);
+    const actual = policies[0]?.[1].split(";").map((part) => part.trim().split(/\s+/u)).filter(([name]) => name);
+    if (policies.length !== 1 || actual.length !== expected.size || actual.some(([name, ...sources]) => {
+        const allowed = expected.get(name);
+        if (!allowed || sources.length !== allowed.length || new Set(sources).size !== sources.length || sources.some((source) => !allowed.includes(source))) return true;
+        expected.delete(name);
+        return false;
+    }) || expected.size !== 0) {
+        errors.push(`${htmlFile} CSP must allow only local assets and the exact Cloudflare beacon and ingestion URLs.`);
     }
 }
 

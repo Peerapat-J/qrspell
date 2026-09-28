@@ -26,11 +26,14 @@ test("QR generator controls work together in a real browser", { timeout: 30_000 
     try {
         site = await startStaticServer();
         browser = await startBrowser();
-        const target = await createTarget(browser.debugOrigin, `${site.origin}/qr-code-generator/`);
+        const target = await createTarget(browser.debugOrigin, "about:blank");
         client = await CdpClient.connect(target.webSocketDebuggerUrl);
         await client.send("Page.enable");
         await client.send("Runtime.enable");
-        await waitFor(client, `document.readyState === "complete" && Boolean(document.querySelector("#module-shape-trigger"))`);
+        await client.send("Browser.setDownloadBehavior", { behavior: "deny" });
+        await client.send("Network.enable");
+        await client.send("Network.setBlockedURLs", { urls: ["*cloudflareinsights.com/*"] });
+        await navigate(client, `${site.origin}/qr-code-generator/`);
 
         await context.test("keyboard dropdown selection and Reset restore defaults", async () => {
             await client.evaluate(`document.querySelector("#module-shape-trigger").focus()`);
@@ -832,6 +835,195 @@ test("QR generator controls work together in a real browser", { timeout: 30_000 
     }
 });
 
+test("optional Cloudflare baseline preserves Generator behavior and exact CSP", { timeout: 60_000 }, async (context) => {
+    let site;
+    let browser;
+    let client;
+    const beaconUrl = "https://static.cloudflareinsights.com/beacon.min.js";
+    const ingestUrl = "https://cloudflareinsights.com/cdn-cgi/rum";
+    const fixturePath = process.env.CLOUDFLARE_BEACON_FIXTURE;
+    // CI uses a controlled probe; a temporary provider snapshot enables the real network canary audit.
+    const beaconSource = fixturePath ? readFileSync(fixturePath, "utf8") : `
+        (() => {
+            const body = JSON.stringify({ location: location.origin + location.pathname, siteToken: JSON.parse(document.currentScript.dataset.cfBeacon).token });
+            addEventListener("load", () => {
+                const request = new XMLHttpRequest();
+                request.open("POST", ${JSON.stringify(ingestUrl)});
+                request.setRequestHeader("Content-Type", "application/json");
+                request.send(body);
+            });
+            document.addEventListener("visibilitychange", () => navigator.sendBeacon(${JSON.stringify(ingestUrl)}, new Blob([body], { type: "application/json" })));
+        })();`;
+    const canaries = ["QR41_SECRET_20260928", "C41XYZ", "FILE41_PRIVATE", "IMAGE41_PRIVATE", "QUERY41_PRIVATE", "HASH41_PRIVATE", "REFERRER41_PRIVATE"];
+    let mode;
+    let requests = [];
+    const interceptionErrors = [];
+    const pendingInterceptions = new Set();
+    try {
+        site = await startStaticServer();
+        browser = await startBrowser();
+        const target = await createTarget(browser.debugOrigin, "about:blank");
+        client = await CdpClient.connect(target.webSocketDebuggerUrl);
+        await client.send("Page.enable");
+        await client.send("Runtime.enable");
+        await client.send("Browser.setDownloadBehavior", { behavior: "deny" });
+        await client.send("Network.enable", { maxPostDataSize: 2_000_000 });
+        await client.send("Page.addScriptToEvaluateOnNewDocument", { source: `
+            window.__qrspellCspViolations = [];
+            document.addEventListener("securitypolicyviolation", event => window.__qrspellCspViolations.push({ directive: event.effectiveDirective, url: event.blockedURI }));
+        ` });
+        client.on("Network.requestWillBeSent", ({ requestId, request }) => {
+            if (new URL(request.url).hostname.endsWith("cloudflareinsights.com")) requests.push({ requestId, ...request });
+        });
+        client.on("Fetch.requestPaused", ({ requestId, request }) => {
+            const operation = (async () => {
+                const url = new URL(request.url);
+                if (url.origin === site.origin || url.protocol === "data:" || url.protocol === "blob:") {
+                    return client.send("Fetch.continueRequest", { requestId });
+                }
+                if (request.url === beaconUrl) {
+                    if (mode === "beacon blocked") return client.send("Fetch.failRequest", { requestId, errorReason: "BlockedByClient" });
+                    return client.send("Fetch.fulfillRequest", {
+                        requestId, responseCode: 200,
+                        responseHeaders: [{ name: "Content-Type", value: "text/javascript" }],
+                        body: Buffer.from(beaconSource).toString("base64"),
+                    });
+                }
+                if (request.url === ingestUrl) {
+                    if (mode === "ingestion blocked") return client.send("Fetch.failRequest", { requestId, errorReason: "BlockedByClient" });
+                    if (mode === "ingestion timeout" && request.method === "POST") return client.send("Fetch.failRequest", { requestId, errorReason: "TimedOut" });
+                    return client.send("Fetch.fulfillRequest", {
+                        requestId, responseCode: mode === "HTTP error" && request.method === "POST" ? 503 : 204,
+                        responseHeaders: [
+                            { name: "Access-Control-Allow-Origin", value: site.origin },
+                            { name: "Access-Control-Allow-Methods", value: "POST, OPTIONS" },
+                            { name: "Access-Control-Allow-Headers", value: "content-type" },
+                        ],
+                    });
+                }
+                // Every unexpected external request is blocked too; tests cannot emit production telemetry.
+                return client.send("Fetch.failRequest", { requestId, errorReason: "BlockedByClient" });
+            })().catch(error => interceptionErrors.push(error)).finally(() => pendingInterceptions.delete(operation));
+            pendingInterceptions.add(operation);
+        });
+        await client.send("Fetch.enable", { patterns: [{ urlPattern: "*" }] });
+
+        for (mode of ["allowed", "beacon blocked", "ingestion blocked", "ingestion timeout", "HTTP error"]) {
+            await context.test(mode, async () => {
+                requests = [];
+                await client.send("Page.navigate", {
+                    url: `${site.origin}/qr-code-generator/?case=${encodeURIComponent(mode)}&secret=${canaries[4]}#${canaries[5]}`,
+                    referrer: `${site.origin}/?secret=${canaries[6]}`,
+                });
+                await waitFor(client, `document.readyState === "complete" && Boolean(document.querySelector("#module-shape-trigger"))`);
+                assert.deepEqual(await client.evaluate("window.__qrspellCspViolations"), [], "CSP must permit the declared beacon and ingestion endpoint");
+                assert.equal(requests.filter(request => request.url === beaconUrl).length, 1);
+
+                if (mode === "allowed") {
+                    await client.evaluate(`Promise.all([
+                        fetch(${JSON.stringify(site.origin + "/forbidden-connection")}).catch(() => {}),
+                        fetch("https://cloudflareinsights.com/forbidden-connection").catch(() => {})
+                    ])`);
+                    const violations = await client.evaluate("window.__qrspellCspViolations");
+                    assert.equal(violations.length, 2);
+                    assert.ok(violations.every(violation => violation.directive === "connect-src"));
+                }
+
+                await client.evaluate(`(() => {
+                    const content = document.querySelector("#qr-content");
+                    content.value = ${JSON.stringify(canaries[0])};
+                    content.dispatchEvent(new Event("input", { bubbles: true }));
+                    const reliability = document.querySelector("#reliability");
+                    reliability.value = "H";
+                    reliability.dispatchEvent(new Event("change", { bubbles: true }));
+                    const centerType = document.querySelector("#center-type");
+                    centerType.value = "text";
+                    centerType.dispatchEvent(new Event("change", { bubbles: true }));
+                    const centerText = document.querySelector("#center-text");
+                    centerText.value = ${JSON.stringify(canaries[1])};
+                    centerText.dispatchEvent(new Event("input", { bubbles: true }));
+                })()`);
+                await waitFor(client, `document.querySelector("#verification-status").dataset.state === "verified"`);
+
+                await client.evaluate(`(async () => {
+                    const canvas = document.createElement("canvas");
+                    canvas.width = canvas.height = 64;
+                    const drawing = canvas.getContext("2d");
+                    drawing.fillStyle = "#ffffff";
+                    drawing.fillRect(0, 0, 64, 64);
+                    drawing.fillStyle = "#000000";
+                    drawing.fillRect(16, 16, 32, 32);
+                    const blob = await new Promise(resolve => canvas.toBlob(resolve, "image/png"));
+                    const transfer = new DataTransfer();
+                    transfer.items.add(new File([blob, ${JSON.stringify(canaries[3])}], ${JSON.stringify(canaries[2] + ".png")}, { type: "image/png" }));
+                    const centerType = document.querySelector("#center-type");
+                    centerType.value = "image";
+                    centerType.dispatchEvent(new Event("change", { bubbles: true }));
+                    const image = document.querySelector("#center-image");
+                    image.files = transfer.files;
+                    image.dispatchEvent(new Event("change", { bubbles: true }));
+                })()`);
+                await waitFor(client, `document.querySelector("#verification-status").dataset.state === "verified" && document.querySelector("#center-image-name").textContent === ${JSON.stringify(canaries[2] + ".png")} && Boolean(document.querySelector("#qr-preview svg image"))`);
+                await client.evaluate(`(() => {
+                    window.__qrspellAnalyticsTestCopied = false;
+                    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { write(items) {
+                        window.__qrspellAnalyticsTestCopied = items[0].types.includes("image/png");
+                        return Promise.resolve();
+                    } } });
+                    document.querySelector("#copy-qr").click();
+                })()`);
+                await waitFor(client, `window.__qrspellAnalyticsTestCopied && document.querySelector("#verification-status").textContent.includes("PNG copied")`);
+                await client.evaluate('document.querySelector("#download-qr").click()');
+                await waitFor(client, `document.querySelector("#verification-status").textContent.includes("PNG downloaded")`);
+                await client.evaluate('document.querySelector("#reset-generator").click()');
+                assert.deepEqual(await client.evaluate(`(() => ({ content: document.querySelector("#qr-content").value, state: document.querySelector("#verification-status").dataset.state }))()`), { content: "", state: "idle" });
+
+                if (mode !== "beacon blocked") {
+                    await waitForRequest(() => requests.some(request => request.url === ingestUrl && request.method === "POST"));
+                    await client.evaluate(`(() => {
+                        Object.defineProperty(document, "visibilityState", { configurable: true, value: "hidden" });
+                        document.dispatchEvent(new Event("visibilitychange"));
+                    })()`);
+                    await waitForRequest(() => requests.filter(request => request.url === ingestUrl && request.method === "POST").length >= 2);
+                } else {
+                    assert.equal(requests.filter(request => request.url === ingestUrl).length, 0);
+                }
+                await Promise.all([...pendingInterceptions]);
+                assert.deepEqual(interceptionErrors, []);
+                const envelopes = requests.filter(request => request.url === beaconUrl || request.url === ingestUrl);
+                const posts = envelopes.filter(request => request.method === "POST");
+                for (const request of posts) {
+                    if (!request.postData) {
+                        const result = await client.send("Network.getRequestPostData", { requestId: request.requestId });
+                        request.postData = result.postData;
+                    }
+                }
+                const serialized = JSON.stringify(envelopes);
+                for (const canary of canaries) assert.ok(!serialized.includes(canary), `Analytics leaked ${canary}`);
+                assert.doesNotMatch(serialized, /data:image|<svg|centerText|centerImage|moduleShape|finderShape|exportSize|reliability/u);
+                assert.ok(posts.every(request => request.postData), "Capture the complete analytics body, not just request URLs");
+                for (const request of posts) {
+                    const payload = JSON.parse(request.postData);
+                    assert.equal(payload.location, site.origin + "/qr-code-generator/");
+                    assert.equal(payload.siteToken, "e43189ed6f5c43d29472b9b18c73b226");
+                }
+            });
+        }
+        context.diagnostic(fixturePath ? "Audited the intercepted provider snapshot; no production ingestion." : "Used a controlled beacon probe; provider snapshot audit is optional.");
+    } finally {
+        await cleanupTestResources({ client, browser, site });
+    }
+});
+
+async function waitForRequest(condition, timeout = 7_000) {
+    const deadline = Date.now() + timeout;
+    while (Date.now() < deadline) {
+        if (condition()) return;
+        await new Promise(resolve => setTimeout(resolve, 40));
+    }
+    throw new Error("Timed out waiting for intercepted analytics request.");
+}
+
 test("browser test cleanup handles partially initialized resources", async () => {
     const profile = mkdtempSync(`${tmpdir()}/qrspell-browser-cleanup-test-`);
     const cleanupEvents = [];
@@ -1098,11 +1290,14 @@ class CdpClient {
         this.socket = socket;
         this.nextID = 1;
         this.pending = new Map();
+        this.listeners = new Map();
         socket.addEventListener("message", (event) => {
             const message = JSON.parse(String(event.data));
-            if (!message.id || !this.pending.has(message.id)) {
+            if (!message.id) {
+                for (const listener of this.listeners.get(message.method) ?? []) listener(message.params);
                 return;
             }
+            if (!this.pending.has(message.id)) return;
             const { resolve: resolvePromise, reject } = this.pending.get(message.id);
             this.pending.delete(message.id);
             if (message.error) {
@@ -1111,6 +1306,11 @@ class CdpClient {
                 resolvePromise(message.result);
             }
         });
+    }
+
+    on(method, listener) {
+        if (!this.listeners.has(method)) this.listeners.set(method, []);
+        this.listeners.get(method).push(listener);
     }
 
     send(method, params = {}) {
