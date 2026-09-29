@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 
 const host = "127.0.0.1";
 const port = 41741;
-const contract = JSON.parse(readFileSync(new URL("../docs/analytics/event-schema-v1.json", import.meta.url), "utf8"));
+const contract = JSON.parse(readFileSync(new URL("../docs/analytics/event-schema-v2.json", import.meta.url), "utf8"));
 const browserContract = JSON.stringify({
     events: contract.events,
     forbiddenPropertyNames: contract.forbidden_property_names,
@@ -35,7 +35,7 @@ const html = String.raw`<!doctype html>
     const journey = document.querySelector('#journey');
     const download = document.querySelector('#download');
     const contract = ${browserContract};
-    const base = Object.freeze({ analytics_schema_version: 1, environment: 'sandbox' });
+    const base = Object.freeze({ analytics_schema_version: 2, environment: 'sandbox' });
     const settings = Object.freeze({ module_shape: 'square', finder_shape: 'rounded', export_size: 512, reliability: 'Q', center_type: 'none' });
     const approvedEvents = new Set(Object.keys(contract.events));
     const forbiddenPropertyNames = new Set(contract.forbiddenPropertyNames);
@@ -198,7 +198,7 @@ const html = String.raw`<!doctype html>
       safeCapture('site_page_viewed', { ...base, route: 'generator' });
       safeCapture('generator_viewed', { ...base });
       safeCapture('generator_started', { ...base });
-      safeCapture('qr_generation_completed', { ...base, ...settings, outcome: 'verified', warning_count: 0 });
+      safeCapture('qr_generation_completed', { ...base, ...settings, outcome: 'verified', warning_count: 0, warning_inverted_modules: false, warning_low_contrast: false, warning_dense_content: false, warning_weak_center_reliability: false });
       safeCapture('qr_exported', { ...base, ...settings, method: 'copy' });
     });
 

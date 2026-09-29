@@ -31,7 +31,7 @@ function envelope(overrides = {}) {
     return {
         event: "generator_viewed",
         properties: {
-            analytics_schema_version: 1, environment: "production", token,
+            analytics_schema_version: 2, environment: "production", token,
             distinct_id: "$posthog_cookieless", $process_person_profile: false,
             $lib: "web", $lib_version: sdkVersion,
         },
@@ -69,7 +69,7 @@ test("initializes once, drops pre-init events, and snapshots approved properties
     const input = { route: "generator" };
     assert.equal(analytics.captureEvent("site_page_viewed", input), true);
     input.route = "privacy";
-    assert.deepEqual({ ...captured[0].properties }, { route: "generator", environment: "production", analytics_schema_version: 1 });
+    assert.deepEqual({ ...captured[0].properties }, { route: "generator", environment: "production", analytics_schema_version: 2 });
 });
 
 test("rejects unknown events, unsafe values, and metadata overrides before calling the provider", async () => {
@@ -84,7 +84,7 @@ test("rejects unknown events, unsafe values, and metadata overrides before calli
         ["site_page_viewed", { route: { value: "generator" } }],
         ["site_page_viewed", { route: "data:image/png;base64,secret" }],
         ["generator_viewed", { environment: "sandbox" }],
-        ["generator_viewed", { analytics_schema_version: 1 }],
+        ["generator_viewed", { analytics_schema_version: 2 }],
         ["generator_viewed", { distinct_id: "secret" }],
         ["generator_viewed", new Error("secret")],
     ]) assert.equal(analytics.captureEvent(name, properties), false);
@@ -203,7 +203,7 @@ test("sanitizer strips automatic enrichment and unknown top-level content", () =
 test("sanitizer refuses persistent identities, person processing, token/version mismatches, and automatic events", () => {
     for (const change of [
         { distinct_id: "stable-id" }, { $process_person_profile: true }, { token: "phc_other" },
-        { $lib: "unknown" }, { $lib_version: "other" }, { environment: "sandbox" }, { analytics_schema_version: 2 },
+        { $lib: "unknown" }, { $lib_version: "other" }, { environment: "sandbox" }, { analytics_schema_version: 1 },
     ]) {
         const input = envelope();
         Object.assign(input.properties, change);

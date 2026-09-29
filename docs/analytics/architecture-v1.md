@@ -1,10 +1,19 @@
 # Analytics architecture and privacy data contract v1
 
-- Status: **Sandbox validated; production remains gated**
+- Status: **v1 sandbox validated; v2 provider validation pending; production gated**
 - Decision date: 2026-09-28
 - Scope: QRSpell public website and browser QR Generator
 - Tracking issue: [#40](https://github.com/Peerapat-J/qrspell/issues/40)
-- Schema: [`event-schema-v1.json`](event-schema-v1.json)
+- Current schema: [`event-schema-v2.json`](event-schema-v2.json); [v1](event-schema-v1.json)
+  is retained for historical validation.
+
+Schema v2 (2026-09-30) adds four bounded boolean warning categories to
+`qr_generation_completed` for issue #46. It does not add identity, storage,
+autocapture, or free-form values. The #40 sandbox record validates v1 only;
+repeat real-provider delivery, raw-property and funnel checks for v2 before
+production activation. The new fields are derived only from the four already
+displayed warning conditions; the privacy/consent review still needs to accept
+the v2 change before activation.
 
 ## Decision
 
@@ -158,7 +167,7 @@ revisit this if the site begins using storage for another user-facing setting.
 
 Consent review is reopened before adding stable identity, browser storage,
 advertising attribution, session replay, surveys, experiments, or data not in
-schema v1.
+the current approved schema.
 
 ## Retention and deletion
 
@@ -171,7 +180,7 @@ schema v1.
 - Configuration review: every 90 days and whenever the provider plan changes.
 - Provider exit: stop capture first, export only aggregate documentation that
   is still needed, then delete the PostHog project/account data.
-- Data-subject deletion: schema v1 has no user-supplied identity and no stable
+- Data-subject deletion: schema v1 and v2 have no user-supplied identity and no stable
   cross-day identifier, so QRSpell cannot reliably locate a person's events.
   Record this limitation in the analytics documentation; do not promise
   per-person deletion that the implementation cannot provide.
@@ -206,7 +215,7 @@ PostHog changes from conditional Go to Go only when all gates pass:
    dashboard-login cookies in an authenticated test profile are not QRSpell
    analytics storage and must be recorded separately rather than misclassified.
 5. The sandbox demonstrates a safe page view, custom events, property
-   breakdown, and an ordered funnel using only schema-v1 fields.
+   breakdown, and an ordered funnel using only the deployed schema fields.
 6. The project retention window is confirmed at 12 months or less.
 7. DPA/subprocessor review and the internal provider/data-handling record are
    complete. The public Privacy Policy continues to cover the macOS app.

@@ -1821,6 +1821,28 @@ test("Generator event hooks follow real renders, export success and Reset", { ti
             assert.equal((await events('generator_started')).length, 1);
         });
 
+        await context.test('displayed warning categories match the captured quality event', async () => {
+            await load();
+            await client.evaluate(`(() => {
+                for (const [selector, value] of [['#foreground-color', '#777777'], ['#background-color', '#666666']]) {
+                    const input = document.querySelector(selector);
+                    input.value = value;
+                    input.dispatchEvent(new Event('change', { bubbles: true }));
+                }
+            })()`);
+            await type('WARN46_SECRET');
+            const captured = (await quality(1))[0].properties;
+            assert.equal(await client.evaluate(`document.querySelectorAll('#readability-warnings li').length`), 2);
+            assert.deepEqual({
+                warning_count: captured.warning_count,
+                inverted: captured.warning_inverted_modules,
+                lowContrast: captured.warning_low_contrast,
+                dense: captured.warning_dense_content,
+                centerReliability: captured.warning_weak_center_reliability,
+            }, { warning_count: 2, inverted: true, lowContrast: true, dense: false, centerReliability: false });
+            assert.ok(!JSON.stringify(captured).includes('WARN46_SECRET'));
+        });
+
         await context.test('Copy failure emits no export, while a pending successful Copy preserves its original settings', async () => {
             await load();
             await type('HOOK44_SECRET_11');

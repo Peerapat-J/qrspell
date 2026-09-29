@@ -46,7 +46,7 @@ are introduced. Full URL, query/hash, DOM text, and raw referrer are never sent.
 
 Before a real campaign is used, add its reviewed normalized values as optional
 utm_source/utm_medium/utm_campaign property enums to the applicable page-view
-and click event definitions in event-schema-v1.json. Regenerate the browser
+and click event definitions in event-schema-v2.json. Regenerate the browser
 schema, add acceptance and final-envelope tests, and annotate the contract
 change. Referrer collection needs a separate documented decision.
 

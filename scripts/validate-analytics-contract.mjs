@@ -3,7 +3,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
-const schemaPath = join(root, "docs/analytics/event-schema-v1.json");
+const schemaPath = join(root, "docs/analytics/event-schema-v2.json");
 
 export function loadAnalyticsContract() {
     return JSON.parse(readFileSync(schemaPath, "utf8"));
@@ -34,7 +34,15 @@ export function validateAnalyticsContract(contract) {
         }
     }
 
-    if (contract.schema_version !== 1) errors.push("schema_version must be 1.");
+    if (contract.schema_version !== 2) errors.push("schema_version must be 2.");
+    const warningNames = ["warning_inverted_modules", "warning_low_contrast", "warning_dense_content", "warning_weak_center_reliability"];
+    const qualityEvent = contract.events?.qr_generation_completed;
+    for (const name of warningNames) {
+        const rule = qualityEvent?.properties?.[name];
+        if (!qualityEvent?.required?.includes(name) || JSON.stringify(rule?.enum) !== JSON.stringify([false, true])) {
+            errors.push(`qr_generation_completed.${name} must be required and boolean.`);
+        }
+    }
     if (!Array.isArray(transportProperties) || transportProperties.length === 0) {
         errors.push("provider_transport_property_allowlist must be a non-empty array.");
     } else if (new Set(transportProperties).size !== transportProperties.length) {

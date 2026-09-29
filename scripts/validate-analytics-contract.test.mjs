@@ -8,9 +8,9 @@ import {
     validateAnalyticsEvent,
 } from "./validate-analytics-contract.mjs";
 
-test("schema v1 has the approved event set", () => {
+test("schema v2 has the approved event set", () => {
     const contract = loadAnalyticsContract();
-    assert.equal(contract.schema_version, 1);
+    assert.equal(contract.schema_version, 2);
     assert.deepEqual(validateAnalyticsContract(contract), { ok: true, errors: [] });
     assert.deepEqual(Object.keys(contract.events).sort(), [
         "app_store_clicked",
@@ -78,9 +78,18 @@ test("requires every event definition to declare required properties as an array
     assert.match(result.errors.join("\n"), /generator_viewed required must be an array\./u);
 });
 
+test("warning categories stay required booleans", () => {
+    const contract = structuredClone(loadAnalyticsContract());
+    contract.events.qr_generation_completed.properties.warning_low_contrast.enum = ["yes", "no"];
+    assert.match(validateAnalyticsContract(contract).errors.join("\n"), /warning_low_contrast must be required and boolean/u);
+    const missing = structuredClone(loadAnalyticsContract());
+    missing.events.qr_generation_completed.required = missing.events.qr_generation_completed.required.filter(name => name !== "warning_dense_content");
+    assert.match(validateAnalyticsContract(missing).errors.join("\n"), /warning_dense_content must be required and boolean/u);
+});
+
 test("accepts a safe export event", () => {
     const result = validateAnalyticsEvent("qr_exported", {
-        analytics_schema_version: 1,
+        analytics_schema_version: 2,
         environment: "sandbox",
         method: "copy",
         module_shape: "square",
@@ -96,7 +105,7 @@ test("accepts a safe export event", () => {
 test("rejects unknown events and properties", () => {
     assert.equal(validateAnalyticsEvent("unknown", {}).ok, false);
     const result = validateAnalyticsEvent("generator_viewed", {
-        analytics_schema_version: 1,
+        analytics_schema_version: 2,
         environment: "sandbox",
         qr_content: "do not send",
     });
@@ -115,7 +124,7 @@ test("treats inherited Object property names as unknown events", () => {
 
 test("rejects unapproved values and structured data", () => {
     const wrongMethod = validateAnalyticsEvent("qr_exported", {
-        analytics_schema_version: 1,
+        analytics_schema_version: 2,
         environment: "sandbox",
         method: "share",
         module_shape: "square",
@@ -127,7 +136,7 @@ test("rejects unapproved values and structured data", () => {
     assert.equal(wrongMethod.ok, false);
 
     const objectValue = validateAnalyticsEvent("site_page_viewed", {
-        analytics_schema_version: 1,
+        analytics_schema_version: 2,
         environment: "sandbox",
         route: { raw: "/?secret=yes" },
     });

@@ -83,9 +83,9 @@ export function createGeneratorAnalytics({
         }
     }
 
-    function completed(revision, outcome, warningCount) {
+    function completed(revision, outcome, warningSummary) {
         if (!current || current.revision !== revision || disabled) return;
-        current.result = generationProperties(current.configuration, outcome, warningCount);
+        current.result = generationProperties(current.configuration, outcome, warningSummary);
         flush();
     }
 

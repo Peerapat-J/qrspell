@@ -44,7 +44,7 @@ an instance after that timeout.
 - DNT/GPC and offline state are checked before initialization and capture.
 - No analytics cookies, localStorage, or sessionStorage are used. The SDK
   uses cookieless mode, memory persistence, and disabled persistence.
-- `event-schema-v1.json` is the source of truth. Regenerate its deeply frozen
+- `event-schema-v2.json` is the source of truth. Regenerate its deeply frozen
   browser module with `node scripts/generate-analytics-schema.mjs`; CI checks
   it with `--check`.
 - Unknown event names, properties, missing required fields, or unapproved

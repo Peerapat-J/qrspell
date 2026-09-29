@@ -7,9 +7,9 @@ import {
     hsvToHex,
     quietZoneMargin,
     readImageDimensions,
-    readabilityWarnings,
+    readabilityWarningDetails,
     truncateGraphemes,
-} from "./generator-core.mjs?v=20260920a";
+} from "./generator-core.mjs?v=20260930a";
 
 const elements = {
     form: document.querySelector(".generator-controls"),
@@ -73,16 +73,23 @@ const maximumCenterImageDimension = 4096;
 const maximumCenterImagePixels = 4096 * 4096;
 const centerImageDimensionError = "Choose an image no larger than 4096 × 4096 px (16.8 MP).";
 const maximumDisplayedCharacterCount = 5596;
+const noWarnings = Object.freeze({
+    warning_count: 0,
+    warning_inverted_modules: false,
+    warning_low_contrast: false,
+    warning_dense_content: false,
+    warning_weak_center_reliability: false,
+});
 const customSelectInstances = [];
 const customColorInstances = [];
 
 // A failed analytics import must never prevent controls or rendering from starting.
-import("./generator-analytics.mjs?v=20260929a").then(({ createGeneratorAnalytics }) => {
+import("./generator-analytics.mjs?v=20260930a").then(({ createGeneratorAnalytics }) => {
     generatorAnalytics = createGeneratorAnalytics();
     trackGenerator("changed", analyticsRevision, localAnalyticsConfiguration());
     if (generatorEverStarted) trackGenerator("started");
     if (latestAnalyticsResult?.revision === analyticsRevision) {
-        trackGenerator("completed", analyticsRevision, latestAnalyticsResult.outcome, latestAnalyticsResult.warningCount);
+        trackGenerator("completed", analyticsRevision, latestAnalyticsResult.outcome, latestAnalyticsResult.warningSummary);
     }
 }).catch(() => {});
 
@@ -114,10 +121,10 @@ function noteGeneratorChange() {
     trackGenerator("changed", analyticsRevision, configuration);
 }
 
-function noteGeneratorOutcome(revision, outcome, warningCount) {
+function noteGeneratorOutcome(revision, outcome, warningSummary) {
     if (revision !== analyticsRevision) return;
-    latestAnalyticsResult = { revision, outcome, warningCount };
-    trackGenerator("completed", revision, outcome, warningCount);
+    latestAnalyticsResult = { revision, outcome, warningSummary };
+    trackGenerator("completed", revision, outcome, warningSummary);
 }
 
 if (!window.QRCodeStyling || !window.jsQR) {
@@ -680,7 +687,7 @@ function scheduleRender() {
     }
 
     if (elements.centerType.value === "image" && centerImageValidationFailed) {
-        noteGeneratorOutcome(analyticsRevision, "center_image_rejected", 0);
+        noteGeneratorOutcome(analyticsRevision, "center_image_rejected", noWarnings);
         return;
     }
 
@@ -719,10 +726,10 @@ async function renderQr() {
         elements.warnings.hidden = true;
         disableExport();
         setStatus("error", "This content is too long for a QR code. Shorten it and try again.");
-        noteGeneratorOutcome(activeAnalyticsRevision, "capacity_rejected", 0);
+        noteGeneratorOutcome(activeAnalyticsRevision, "capacity_rejected", noWarnings);
         return;
     }
-    const warningCount = renderWarnings(settings);
+    const warningSummary = renderWarnings(settings);
     setStatus("checking", "Checking QR data…");
     disableExport();
 
@@ -753,15 +760,15 @@ async function renderQr() {
             currentQrVerified = true;
             enableExport();
             setStatus("verified", "QR data verified");
-            noteGeneratorOutcome(activeAnalyticsRevision, "verified", warningCount);
+            noteGeneratorOutcome(activeAnalyticsRevision, "verified", warningSummary);
         } else if (decoded) {
             disableExport();
             setStatus("error", "The decoded QR data does not match your content.");
-            noteGeneratorOutcome(activeAnalyticsRevision, "decoded_mismatch", warningCount);
+            noteGeneratorOutcome(activeAnalyticsRevision, "decoded_mismatch", warningSummary);
         } else {
             disableExport();
             setStatus("warning", "This design could not be verified. Try stronger contrast or simpler styling.");
-            noteGeneratorOutcome(activeAnalyticsRevision, "decode_failed", warningCount);
+            noteGeneratorOutcome(activeAnalyticsRevision, "decode_failed", warningSummary);
         }
     } catch (error) {
         if (activeRenderID !== renderID) {
@@ -773,7 +780,7 @@ async function renderQr() {
         elements.previewEmpty.hidden = false;
         disableExport();
         setStatus("error", readableError(error));
-        noteGeneratorOutcome(activeAnalyticsRevision, "render_failed", warningCount);
+        noteGeneratorOutcome(activeAnalyticsRevision, "render_failed", warningSummary);
     }
 }
 
@@ -889,16 +896,18 @@ function currentSettings(content) {
 }
 
 function renderWarnings(settings) {
-    const messages = readabilityWarnings(settings);
+    const warnings = readabilityWarningDetails(settings);
     elements.warnings.replaceChildren();
-    elements.warnings.hidden = messages.length === 0;
+    elements.warnings.hidden = warnings.length === 0;
 
-    for (const message of messages) {
+    const summary = { ...noWarnings, warning_count: warnings.length };
+    for (const warning of warnings) {
         const item = document.createElement("li");
-        item.textContent = message;
+        item.textContent = warning.message;
         elements.warnings.append(item);
+        summary[`warning_${warning.code}`] = true;
     }
-    return messages.length;
+    return summary;
 }
 
 async function decodeQrBlob(blob) {
@@ -1079,7 +1088,7 @@ function rejectCenterImage(message) {
     elements.centerImageError.hidden = false;
     invalidateRenderedQr();
     setStatus("error", message);
-    noteGeneratorOutcome(analyticsRevision, "center_image_rejected", 0);
+    noteGeneratorOutcome(analyticsRevision, "center_image_rejected", noWarnings);
 }
 
 function clearCenterImageError() {

@@ -58,17 +58,21 @@ WebCrypto, quality events are omitted; exports and other product behavior contin
   with non-empty QR content; selecting an image alone is not a QR generation.
 
 Quality properties are `outcome`, `module_shape`, `finder_shape`, `export_size`,
-`reliability`, `center_type`, and `warning_count` (0–4). Count reflects displayed
-readability warnings; capacity/image rejection clears them and reports zero.
+`reliability`, `center_type`, `warning_count` (0–4), and four warning-category
+booleans: `warning_inverted_modules`, `warning_low_contrast`,
+`warning_dense_content`, and `warning_weak_center_reliability`. Count reflects
+displayed readability warnings; capacity/image rejection clears every flag and
+reports zero.
 Exports contain `method` and the five approved settings of the verified QR.
 A successful pending Copy keeps that snapshot even if the user has edited or
 reset the form during the Clipboard write; it cannot update a newer QR's status.
-The wrapper owns `analytics_schema_version=1` and `environment`.
+The wrapper owns `analytics_schema_version=2` and `environment`.
 
 No QR content, center text, image bytes/data URLs, filenames, colors, exact center
 size, exact content length, raw errors, generated PNG/SVG or deduplication keys
-are sent. Warning messages/codes are not sent: codes remain outside the approved
-schema. Unknown enum values suppress the event rather than widening the contract.
+are sent. Warning messages and raw inputs are not sent: only four approved boolean
+category flags leave the browser. Unknown enum values suppress the event rather
+than widening the contract.
 
 Use `generator_viewed → generator_started` for acquisition,
 `generator_started → qr_exported` for activation, and
@@ -103,6 +107,15 @@ browser download to disk, and delivery/raw-event inspection in an approved
 non-production provider project. The internal data-handling record, site-wide
 CSP, and full release canary matrix remain #45 gates. The public Privacy Policy
 covers the macOS app.
+
+## Schema v2 addition — 2026-09-30
+
+Issue #46 adds four boolean warning-category properties. The browser test now
+checks that the displayed warning count and categories match the captured event;
+unit tests check simultaneous categories, count consistency and hostile values.
+The previous sandbox/provider screenshots and 2026-09-29 verification record
+were for schema v1. Repeat real-provider delivery and raw-event checks for v2
+before production activation.
 
 ## Verification record — 2026-09-29
 

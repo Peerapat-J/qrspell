@@ -4,6 +4,11 @@ import { createGeneratorAnalytics, analyticsSettleMs, maximumQualityConfiguratio
 
 const config = (content = "secret") => ({ content, moduleShape: "square", finderShape: "square", exportSize: "512", reliability: "M", centerType: "none" });
 const drain = () => new Promise(resolve => setImmediate(resolve));
+const noWarnings = Object.freeze({
+    warning_count: 0, warning_inverted_modules: false, warning_low_contrast: false,
+    warning_dense_content: false, warning_weak_center_reliability: false,
+});
+const warningSummary = count => count === 0 ? noWarnings : { ...noWarnings, warning_count: count, warning_low_contrast: true };
 function fixture(options = {}) {
     let now = 0;
     let next = 0;
@@ -45,14 +50,14 @@ test("rapid editing cancels old results and waits 600 ms independently of render
     const f = fixture();
     await f.controller.initialized;
     f.controller.changed(1, config("first"));
-    f.controller.completed(1, "verified", 0);
+    f.controller.completed(1, "verified", warningSummary(0));
     await f.tick(180);
     assert.equal(f.quality().length, 0);
     f.controller.changed(2, config("last"));
-    f.controller.completed(1, "render_failed", 0);
+    f.controller.completed(1, "render_failed", warningSummary(0));
     await f.tick(599);
     assert.equal(f.quality().length, 0);
-    f.controller.completed(2, "verified", 0);
+    f.controller.completed(2, "verified", warningSummary(0));
     await f.tick(1);
     assert.equal(f.quality().length, 1);
     assert.equal(f.quality()[0].properties.outcome, "verified");
@@ -65,7 +70,7 @@ test("verification finishing after the settle interval reports only its latest o
     f.controller.changed(1, config());
     await f.tick();
     assert.equal(f.quality().length, 0);
-    f.controller.completed(1, "decoded_mismatch", 1);
+    f.controller.completed(1, "decoded_mismatch", warningSummary(1));
     await drain();
     assert.equal(f.quality().length, 1);
 });
@@ -75,7 +80,7 @@ test("configuration deduplication survives Reset and returning to an earlier con
     await f.controller.initialized;
     for (const [revision, content] of [[1, "A"], [2, "B"], [3, "A"]]) {
         f.controller.changed(revision, config(content));
-        f.controller.completed(revision, "verified", 0);
+        f.controller.completed(revision, "verified", warningSummary(0));
         await f.tick();
         f.controller.reset(true);
     }
@@ -87,7 +92,7 @@ test("a stale async fingerprint cannot emit after editing or clearing the page",
     const f = fixture({ fingerprint: () => new Promise(resolve => { finish = resolve; }) });
     await f.controller.initialized;
     f.controller.changed(1, config());
-    f.controller.completed(1, "verified", 0);
+    f.controller.completed(1, "verified", warningSummary(0));
     await f.tick();
     f.controller.changed(2, config(""));
     finish("key");
@@ -101,7 +106,7 @@ test("quality memory and event volume have a page cap without evicting old keys"
     await f.controller.initialized;
     for (const [revision, content] of [[1, "A"], [2, "B"], [3, "C"], [4, "A"]]) {
         f.controller.changed(revision, config(content));
-        f.controller.completed(revision, "verified", 0);
+        f.controller.completed(revision, "verified", warningSummary(0));
         await f.tick();
     }
     assert.equal(f.quality().length, 2);
@@ -128,9 +133,9 @@ test("unsafe outcomes and unavailable hashing never emit quality data or block e
     const f = fixture({ fingerprint: async () => { throw new Error("HASH_SECRET"); } });
     await f.controller.initialized;
     f.controller.changed(1, config());
-    f.controller.completed(1, "ERROR_SECRET", 0);
+    f.controller.completed(1, "ERROR_SECRET", warningSummary(0));
     await f.tick();
-    f.controller.completed(1, "verified", 0);
+    f.controller.completed(1, "verified", warningSummary(0));
     await drain();
     assert.equal(f.quality().length, 0);
     f.controller.exported(config(), "copy");
@@ -149,7 +154,7 @@ test("failed initialization, capture exceptions, rejected captures and disposal 
         assert.doesNotThrow(() => {
             f.controller.started();
             f.controller.changed(1, config());
-            f.controller.completed(1, "verified", 0);
+            f.controller.completed(1, "verified", warningSummary(0));
             f.controller.exported(config(), "copy");
             f.controller.reset(true);
         });
@@ -166,7 +171,7 @@ test("the real SHA-256 key includes private content and active styling without t
     const a = { ...config("SECRET_A"), foreground: "#000000", background: "#FFFFFF", centerText: "inactive" };
     for (const [revision, configuration] of [[1, a], [2, { ...a, centerText: "unused change" }], [3, { ...a, content: "SECRET_B" }], [4, { ...a, foreground: "#222222" }]]) {
         f.controller.changed(revision, configuration);
-        f.controller.completed(revision, "verified", 0);
+        f.controller.completed(revision, "verified", warningSummary(0));
         await f.tick();
         // WebCrypto completes on a worker, independently of the fake settle clock.
         const expected = revision <= 2 ? 1 : revision - 1;
