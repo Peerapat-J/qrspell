@@ -1512,12 +1512,13 @@ test("website events audit SDK envelopes and native navigation without productio
         assert.equal(envelope.api_key, token);
         return envelope.batch;
     });
+    const websiteEvents = () => events().filter(event => event.event !== "generator_viewed");
     const audit = () => {
         for (const event of events()) {
-            assert.ok(["site_page_viewed", "app_store_clicked"].includes(event.event));
+            assert.ok(["site_page_viewed", "app_store_clicked", "generator_viewed"].includes(event.event));
             assert.deepEqual(Object.keys(event.properties).sort(), [
                 "analytics_schema_version", "environment", "token", "distinct_id", "$lib", "$lib_version", "$process_person_profile", "$geoip_disable",
-                event.event === "site_page_viewed" ? "route" : "source",
+                ...(event.event === "site_page_viewed" ? ["route"] : event.event === "app_store_clicked" ? ["source"] : []),
             ].sort());
             assert.equal(event.properties.environment, "sandbox");
             assert.equal(event.properties.distinct_id, "$posthog_cookieless");
@@ -1640,10 +1641,10 @@ test("website events audit SDK envelopes and native navigation without productio
         await context.test("each public route emits one view without URL or DOM data", async () => {
             for (const [path, route] of [["/", "home"], ["/qr-code-generator/", "generator"], ["/changelog/", "changelog"], ["/privacy/", "privacy"], ["/helpcenter/", "helpcenter"], ["/Acknowledgements/", "acknowledgements"]]) {
                 assert.equal(await load(path), true);
-                await waitForRequest(() => requests.length === 1);
+                await waitForRequest(() => websiteEvents().length === 1);
                 await client.evaluate(`document.body.append(document.createTextNode(${JSON.stringify(canaries[3])})); location.hash = 'changed';`);
                 assert.equal(await client.evaluate(`(async () => (await import('/assets/site-analytics.mjs')).startSiteAnalytics())()`), true);
-                assert.deepEqual(events().map(event => [event.event, event.properties.route]), [["site_page_viewed", route]]);
+                assert.deepEqual(websiteEvents().map(event => [event.event, event.properties.route]), [["site_page_viewed", route]]);
                 assert.deepEqual(await client.evaluate("({ cookies: document.cookie, local: Object.keys(localStorage), session: Object.keys(sessionStorage) })"), { cookies: "", local: [], session: [] });
                 audit();
             }
@@ -1663,11 +1664,11 @@ test("website events audit SDK envelopes and native navigation without productio
             for (const [source, path] of [["header", "/"], ["homepage_hero", "/"], ["generator_cta", "/qr-code-generator/"], ["footer", "/"]]) {
                 for (const keyboard of [false, true]) {
                     assert.equal(await load(path), true);
-                    await waitForRequest(() => requests.length === 1);
+                    await waitForRequest(() => websiteEvents().length === 1);
                     await activateCta(source, keyboard);
                     await waitForRequest(() => events().some(event => event.event === "app_store_clicked"));
-                    assert.deepEqual(events().map(event => event.event), ["site_page_viewed", "app_store_clicked"]);
-                    assert.equal(events()[1].properties.source, source);
+                    assert.deepEqual(websiteEvents().map(event => event.event), ["site_page_viewed", "app_store_clicked"]);
+                    assert.equal(websiteEvents()[1].properties.source, source);
                     audit();
                 }
             }
@@ -1688,6 +1689,183 @@ test("website events audit SDK envelopes and native navigation without productio
         await Promise.all([...pending]);
         assert.deepEqual(interceptionErrors, []);
         context.diagnostic("Real SDK, fake sandbox config/token, fully intercepted network. Native same-tab CTA fixture covers keyboard/pointer; original href, target and rel are checked before fixture activation.");
+    } finally {
+        await cleanupTestResources({ client, browser, site });
+    }
+});
+
+
+test("Generator event hooks follow real renders, export success and Reset", { timeout: 60_000 }, async context => {
+    let site;
+    let browser;
+    let client;
+    const pending = new Set();
+    const errors = [];
+    const runtimeErrors = [];
+    const events = name => client.evaluate(`(window.__generatorEvents ?? []).filter(event => event.name === ${JSON.stringify(name)})`);
+    const load = async () => {
+        await navigate(client, `${site.origin}/qr-code-generator/`);
+        await waitFor(client, `Boolean(document.querySelector('#module-shape-trigger')) && window.__generatorEvents?.some(event => event.name === 'generator_viewed')`);
+    };
+    const type = value => client.evaluate(`(() => {
+        const input = document.querySelector('#qr-content');
+        input.value = ${JSON.stringify(value)};
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+    })()`);
+    const quality = async count => {
+        await waitFor(client, `(window.__generatorEvents ?? []).filter(event => event.name === 'qr_generation_completed').length >= ${count}`);
+        return events('qr_generation_completed');
+    };
+    const pause = () => client.evaluate(`new Promise(resolve => setTimeout(resolve, 800))`);
+    try {
+        site = await startStaticServer();
+        browser = await startBrowser();
+        const target = await createTarget(browser.debugOrigin, 'about:blank');
+        client = await CdpClient.connect(target.webSocketDebuggerUrl);
+        await client.send('Page.enable');
+        await client.send('Runtime.enable');
+        await client.send('Browser.setDownloadBehavior', { behavior: 'deny' });
+        client.on('Runtime.exceptionThrown', event => runtimeErrors.push(event));
+        client.on('Fetch.requestPaused', ({ requestId, request }) => {
+            const operation = (async () => {
+                const url = new URL(request.url);
+                if (url.origin === site.origin && url.pathname === '/assets/analytics.mjs') {
+                    return client.send('Fetch.fulfillRequest', {
+                        requestId, responseCode: 200, responseHeaders: [{ name: 'Content-Type', value: 'text/javascript' }],
+                        body: Buffer.from(`
+                            export const initAnalytics = async () => true;
+                            export function captureEvent(name, properties = {}) {
+                                (window.__generatorEvents ??= []).push({ name, properties });
+                                return true;
+                            }
+                        `).toString('base64'),
+                    });
+                }
+                return client.send(url.origin === site.origin ? 'Fetch.continueRequest' : 'Fetch.failRequest',
+                    url.origin === site.origin ? { requestId } : { requestId, errorReason: 'BlockedByClient' });
+            })().catch(error => errors.push(error)).finally(() => pending.delete(operation));
+            pending.add(operation);
+        });
+        await client.send('Fetch.enable', { patterns: [{ urlPattern: '*' }] });
+
+        await context.test('rapid typing and slider changes settle once; repeated configurations stay deduplicated after Reset', async () => {
+            await load();
+            await client.evaluate(`document.querySelector('#reset-generator').click()`);
+            assert.equal((await events('generator_reset')).length, 0);
+            await client.evaluate(`(async () => {
+                const input = document.querySelector('#qr-content');
+                const slider = document.querySelector('#center-size');
+                for (let i = 0; i < 12; i++) {
+                    input.value = 'HOOK44_SECRET_' + i;
+                    input.dispatchEvent(new Event('input', { bubbles: true }));
+                    slider.value = String(0.2 + i * 0.005);
+                    slider.dispatchEvent(new Event('input', { bubbles: true }));
+                    await new Promise(resolve => setTimeout(resolve, 15));
+                }
+            })()`);
+            assert.equal((await events('qr_generation_completed')).length, 0);
+            assert.equal((await quality(1)).length, 1);
+            assert.equal((await events('generator_started')).length, 1);
+            await client.evaluate(`document.querySelector('#reset-generator').click(); document.querySelector('#reset-generator').click();`);
+            assert.equal((await events('generator_reset')).length, 1);
+            await type('HOOK44_SECRET_11');
+            await waitFor(client, `document.querySelector('#verification-status').dataset.state === 'verified'`);
+            await pause();
+            assert.equal((await events('qr_generation_completed')).length, 1);
+            assert.equal((await events('generator_started')).length, 1);
+        });
+
+        await context.test('Copy failure emits no export, while a pending successful Copy preserves its original settings', async () => {
+            await load();
+            await type('HOOK44_SECRET_11');
+            await quality(1);
+            await client.evaluate(`(() => {
+                Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { write: async () => { throw new Error('CLIPBOARD44_SECRET'); } } });
+                document.querySelector('#copy-qr').click();
+            })()`);
+            await waitFor(client, `document.querySelector('#verification-status').textContent.includes('CLIPBOARD44_SECRET')`);
+            assert.equal((await events('qr_exported')).length, 0);
+            await client.evaluate(`(() => {
+                Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { write: () => new Promise(resolve => { window.__finishCopy44 = resolve; }) } });
+                document.querySelector('#copy-qr').click();
+                const shape = document.querySelector('#module-shape');
+                shape.value = 'dots';
+                shape.dispatchEvent(new Event('change', { bubbles: true }));
+                window.__finishCopy44();
+            })()`);
+            await waitFor(client, `window.__generatorEvents.filter(event => event.name === 'qr_exported').length === 1`);
+            assert.equal((await events('qr_exported'))[0].properties.module_shape, 'square');
+            await quality(2);
+            await client.evaluate(`document.querySelector('#download-qr').click()`);
+            await waitFor(client, `window.__generatorEvents.filter(event => event.name === 'qr_exported').length === 2`);
+            assert.deepEqual((await events('qr_exported')).map(event => [event.properties.method, event.properties.module_shape]), [['copy', 'square'], ['download', 'dots']]);
+        });
+
+        for (const [outcome, setup, content] of [
+            ['verified', '', 'QR44_SECRET'],
+            ['capacity_rejected', '', 'X'.repeat(6000)],
+            ['decode_failed', 'window.jsQR = () => null;', 'QR44_SECRET'],
+            ['decoded_mismatch', "window.jsQR = () => ({ data: 'DECODE44_SECRET' });", 'QR44_SECRET'],
+            ['render_failed', "window.QRCodeStyling = function() { throw new Error('ERROR44_SECRET'); };", 'QR44_SECRET'],
+        ]) {
+            await context.test(`latest production result maps to ${outcome}`, async () => {
+                await load();
+                if (setup) await client.evaluate(setup);
+                await type(content);
+                assert.equal((await quality(1))[0].properties.outcome, outcome);
+            });
+        }
+
+        await context.test('an older delayed render cannot emit after the latest render has settled', async () => {
+            await load();
+            await client.evaluate(`(() => {
+                const Original = window.QRCodeStyling;
+                window.QRCodeStyling = function(options) {
+                    const qr = new Original(options);
+                    if (options.data === 'OLD44_SECRET') {
+                        const setup = qr._setupSvg.bind(qr);
+                        qr._setupSvg = () => {
+                            setup();
+                            qr._svgDrawingPromise = Promise.all([qr._svgDrawingPromise, new Promise(resolve => setTimeout(resolve, 1200))]);
+                            window.__oldRender44 = true;
+                        };
+                    }
+                    return qr;
+                };
+            })()`);
+            await type('OLD44_SECRET');
+            await waitFor(client, 'window.__oldRender44 === true');
+            await type('LATEST44_SECRET');
+            assert.equal((await quality(1))[0].properties.outcome, 'verified');
+            await pause();
+            assert.equal((await events('qr_generation_completed')).length, 1);
+            assert.equal(await client.evaluate(`document.querySelector('#verification-status').dataset.state`), 'verified');
+        });
+
+        await context.test('center-image rejection maps to a safe outcome without filename or image content', async () => {
+            await load();
+            await client.evaluate(`(() => {
+                const input = document.querySelector('#qr-content');
+                input.value = 'QR44_SECRET';
+                input.dispatchEvent(new Event('input', { bubbles: true }));
+                const type = document.querySelector('#center-type');
+                type.value = 'image';
+                type.dispatchEvent(new Event('change', { bubbles: true }));
+                const transfer = new DataTransfer();
+                transfer.items.add(new File(['IMAGE44_SECRET'], 'FILE44_SECRET.png', { type: 'image/png' }));
+                const image = document.querySelector('#center-image');
+                image.files = transfer.files;
+                image.dispatchEvent(new Event('change', { bubbles: true }));
+            })()`);
+            const captured = await quality(1);
+            assert.equal(captured[0].properties.outcome, 'center_image_rejected');
+            assert.equal(captured[0].properties.center_type, 'image');
+            assert.ok(!JSON.stringify(await client.evaluate('window.__generatorEvents')).includes('SECRET'));
+        });
+        await Promise.all([...pending]);
+        assert.deepEqual(errors, []);
+        assert.deepEqual(runtimeErrors, []);
+        context.diagnostic('Hooks exercised with a local capture stub; no provider requests. Clipboard is stubbed and disk downloads are denied.');
     } finally {
         await cleanupTestResources({ client, browser, site });
     }
