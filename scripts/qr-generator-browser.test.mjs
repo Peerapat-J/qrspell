@@ -7,6 +7,7 @@ import { dirname, extname, resolve, sep } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { analyticsSchema } from "../assets/analytics-schema.mjs";
+import { auditAnalyticsRequests, readAnalyticsBody, cloudflareTestSource, cloudflareBeaconUrl, cloudflareIngestUrl } from "./analytics-network-audit.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const mimeTypes = new Map([
@@ -844,20 +845,11 @@ test("optional Cloudflare baseline preserves Generator behavior and exact CSP", 
     const ingestUrl = "https://cloudflareinsights.com/cdn-cgi/rum";
     const fixturePath = process.env.CLOUDFLARE_BEACON_FIXTURE;
     // CI uses a controlled probe; a temporary provider snapshot enables the real network canary audit.
-    const beaconSource = fixturePath ? readFileSync(fixturePath, "utf8") : `
-        (() => {
-            const body = JSON.stringify({ location: location.origin + location.pathname, siteToken: JSON.parse(document.currentScript.dataset.cfBeacon).token });
-            addEventListener("load", () => {
-                const request = new XMLHttpRequest();
-                request.open("POST", ${JSON.stringify(ingestUrl)});
-                request.setRequestHeader("Content-Type", "application/json");
-                request.send(body);
-            });
-            document.addEventListener("visibilitychange", () => navigator.sendBeacon(${JSON.stringify(ingestUrl)}, new Blob([body], { type: "application/json" })));
-        })();`;
+    const beaconSource = cloudflareTestSource();
     const canaries = ["QR41_SECRET_20260928", "C41XYZ", "FILE41_PRIVATE", "IMAGE41_PRIVATE", "QUERY41_PRIVATE", "HASH41_PRIVATE", "REFERRER41_PRIVATE"];
     let mode;
     let requests = [];
+    const interceptedBodies = new Map();
     const interceptionErrors = [];
     const pendingInterceptions = new Set();
     try {
@@ -871,14 +863,26 @@ test("optional Cloudflare baseline preserves Generator behavior and exact CSP", 
         await client.send("Network.enable", { maxPostDataSize: 2_000_000 });
         await client.send("Page.addScriptToEvaluateOnNewDocument", { source: `
             window.__qrspellCspViolations = [];
+            Object.defineProperty(navigator, 'webdriver', { value: false });
             document.addEventListener("securitypolicyviolation", event => window.__qrspellCspViolations.push({ directive: event.effectiveDirective, url: event.blockedURI }));
         ` });
         client.on("Network.requestWillBeSent", ({ requestId, request }) => {
-            if (new URL(request.url).hostname.endsWith("cloudflareinsights.com")) requests.push({ requestId, ...request });
+            if (new URL(request.url).hostname.endsWith("cloudflareinsights.com")) requests.push({ requestId, ...request, postData: request.postData ?? interceptedBodies.get(requestId) });
         });
-        client.on("Fetch.requestPaused", ({ requestId, request }) => {
+        client.on("Fetch.requestPaused", ({ requestId, networkId, request }) => {
+            if (request.method === "POST" && request.postData) {
+                interceptedBodies.set(networkId, request.postData);
+                const captured = requests.find(item => item.requestId === networkId);
+                if (captured) captured.postData = request.postData;
+            }
             const operation = (async () => {
                 const url = new URL(request.url);
+                if (url.pathname === '/assets/cloudflare-bootstrap.mjs' && url.origin === site.origin) {
+                    return client.send('Fetch.fulfillRequest', { requestId, responseCode: 200,
+                        responseHeaders: [{ name: 'Content-Type', value: 'text/javascript' }],
+                        body: Buffer.from(readFileSync(resolve(root, 'assets/cloudflare-bootstrap.mjs'), 'utf8').replace('origin !== "https://qrspell.app"', `origin !== ${JSON.stringify(site.origin)}`)).toString('base64'),
+                    });
+                }
                 if (url.origin === site.origin || url.protocol === "data:" || url.protocol === "blob:") {
                     return client.send("Fetch.continueRequest", { requestId });
                 }
@@ -904,17 +908,37 @@ test("optional Cloudflare baseline preserves Generator behavior and exact CSP", 
                 }
                 // Every unexpected external request is blocked too; tests cannot emit production telemetry.
                 return client.send("Fetch.failRequest", { requestId, errorReason: "BlockedByClient" });
-            })().catch(error => interceptionErrors.push(error)).finally(() => pendingInterceptions.delete(operation));
+            })().catch(error => { if (error.message !== "Invalid InterceptionId.") interceptionErrors.push(error); }).finally(() => pendingInterceptions.delete(operation));
             pendingInterceptions.add(operation);
         });
         await client.send("Fetch.enable", { patterns: [{ urlPattern: "*" }] });
+
+        await context.test("all public routes permit only the baseline endpoints under CSP", async () => {
+            mode = "allowed";
+            for (const path of ["/", "/privacy/", "/changelog/", "/helpcenter/", "/Acknowledgements/", "/legal/"]) {
+                requests = [];
+                await client.send("Page.navigate", { url: `${site.origin}${path}?secret=${canaries[4]}#${canaries[5]}`, referrer: `${site.origin}/` });
+                const destination = path === "/legal/" ? "/Acknowledgements/" : path;
+                await waitFor(client, `document.readyState === 'complete' && location.pathname === ${JSON.stringify(destination)}`);
+                await waitForRequest(async () => {
+                    for (const request of requests.filter(request => request.method === "POST" && !request.postData)) {
+                        try { await readAnalyticsBody(client, request); }
+                        catch (error) { if (error.message !== "No resource with given id was found") throw error; }
+                    }
+                    return requests.some(request => request.method === "POST" && request.postData?.includes(site.origin + destination));
+                });
+                await Promise.all([...pendingInterceptions]);
+                assert.deepEqual(await client.evaluate("window.__qrspellCspViolations"), []);
+                await auditAnalyticsRequests(client, requests, canaries);
+            }
+        });
 
         for (mode of ["allowed", "beacon blocked", "ingestion blocked", "ingestion timeout", "HTTP error"]) {
             await context.test(mode, async () => {
                 requests = [];
                 await client.send("Page.navigate", {
                     url: `${site.origin}/qr-code-generator/?case=${encodeURIComponent(mode)}&secret=${canaries[4]}#${canaries[5]}`,
-                    referrer: `${site.origin}/?secret=${canaries[6]}`,
+                    referrer: `${site.origin}/`,
                 });
                 await waitFor(client, `document.readyState === "complete" && Boolean(document.querySelector("#module-shape-trigger"))`);
                 assert.deepEqual(await client.evaluate("window.__qrspellCspViolations"), [], "CSP must permit the declared beacon and ingestion endpoint");
@@ -1019,7 +1043,7 @@ test("optional Cloudflare baseline preserves Generator behavior and exact CSP", 
 async function waitForRequest(condition, timeout = 7_000) {
     const deadline = Date.now() + timeout;
     while (Date.now() < deadline) {
-        if (condition()) return;
+        if (await condition()) return;
         await new Promise(resolve => setTimeout(resolve, 40));
     }
     throw new Error("Timed out waiting for intercepted analytics request.");
@@ -1585,6 +1609,8 @@ test("website events audit SDK envelopes and native navigation without productio
         });
         await client.send("Page.addScriptToEvaluateOnNewDocument", { source: `
             // Only this intercepted loopback sandbox simulates a human browser.
+            window.__siteCspViolations = [];
+            document.addEventListener('securitypolicyviolation', event => window.__siteCspViolations.push(event.effectiveDirective));
             Object.defineProperty(navigator, 'webdriver', { value: false });
             const mode = new URL(location.href).searchParams.get('mode');
             if (mode === 'GPC') Object.defineProperty(navigator, 'globalPrivacyControl', { value: true });
@@ -1643,12 +1669,31 @@ test("website events audit SDK envelopes and native navigation without productio
             for (const [path, route] of [["/", "home"], ["/qr-code-generator/", "generator"], ["/changelog/", "changelog"], ["/privacy/", "privacy"], ["/helpcenter/", "helpcenter"], ["/Acknowledgements/", "acknowledgements"]]) {
                 assert.equal(await load(path), true);
                 await waitForRequest(() => websiteEvents().length === 1);
+                await waitFor(client, "document.styleSheets.length > 0 && document.images[0]?.naturalWidth > 0");
+                assert.deepEqual(await client.evaluate("window.__siteCspViolations"), [], `${route} assets and SDK must work under CSP`);
                 await client.evaluate(`document.body.append(document.createTextNode(${JSON.stringify(canaries[3])})); location.hash = 'changed';`);
                 assert.equal(await client.evaluate(`(async () => (await import('/assets/site-analytics.mjs')).startSiteAnalytics())()`), true);
                 assert.deepEqual(websiteEvents().map(event => [event.event, event.properties.route]), [["site_page_viewed", route]]);
                 assert.deepEqual(await client.evaluate("({ cookies: document.cookie, local: Object.keys(localStorage), session: Object.keys(sessionStorage) })"), { cookies: "", local: [], session: [] });
                 audit();
             }
+        });
+
+        await context.test("site-wide CSP preserves the image gallery and Help Center copy controls", async () => {
+            await load();
+            await client.evaluate("document.querySelector('.app-preview-trigger').click()");
+            await waitFor(client, "document.querySelector('.image-lightbox').open && document.querySelector('.image-lightbox-image').naturalWidth > 0");
+            await pressKey(client, "Escape");
+            assert.equal(await client.evaluate("document.querySelector('.image-lightbox').open"), false);
+            assert.deepEqual(await client.evaluate("window.__siteCspViolations"), []);
+            await load("/helpcenter/");
+            await client.evaluate(`Object.defineProperty(navigator, 'clipboard', { configurable: true, value: {
+                writeText: async value => { window.__helpCopied45 = value; }
+            } }); document.querySelector('[data-copy-value]').click();`);
+            await waitFor(client, "document.querySelector('[data-copy-value]').dataset.copyState === 'success'");
+            assert.equal(await client.evaluate("window.__helpCopied45"), await client.evaluate("document.querySelector('[data-copy-value]').dataset.copyValue"));
+            assert.deepEqual(await client.evaluate("window.__siteCspViolations"), []);
+            audit();
         });
 
         await context.test("legal redirect stays immediate and reports its destination document", async () => {
@@ -1878,7 +1923,10 @@ test("Generator product events audit real SDK traffic and survive analytics fail
     let browser;
     let client;
     let mode = 'allowed';
+    let loadId = 0;
     let requests = [];
+    let cloudflareRequests = [];
+    const beaconSource = cloudflareTestSource();
     const pending = new Set();
     const errors = [];
     const runtimeErrors = [];
@@ -1893,7 +1941,8 @@ test("Generator product events audit real SDK traffic and survive analytics fail
         return body.batch;
     });
     const count = name => events().filter(event => event.event === name).length;
-    const audit = () => {
+    const audit = async () => {
+        await auditAnalyticsRequests(client, [...requests, ...cloudflareRequests], canaries);
         for (const event of events()) {
             assert.ok(Object.hasOwn(analyticsSchema.events, event.event));
             for (const key of Object.keys(event)) assert.ok(['event', 'properties', 'uuid', 'timestamp'].includes(key));
@@ -1916,11 +1965,13 @@ test("Generator product events audit real SDK traffic and survive analytics fail
         assert.deepEqual(runtimeErrors, []);
         assert.deepEqual(unexpected, []);
     };
-    const load = async () => {
+    const load = async (referrer = `${site.origin}/`) => {
         requests = [];
+        cloudflareRequests = [];
         await client.send('Page.navigate', {
-            url: `${site.origin}/qr-code-generator/?mode=${encodeURIComponent(mode)}&secret=${canaries[4]}#${canaries[5]}`,
-            referrer: `${site.origin}/private?secret=${canaries[6]}`,
+            url: `${site.origin}/qr-code-generator/?mode=${encodeURIComponent(mode)}&navigation=${++loadId}&secret=${canaries[4]}#${canaries[5]}`,
+            referrer,
+            referrerPolicy: "unsafeUrl",
         });
         await waitFor(client, `document.readyState === 'complete' && Boolean(document.querySelector('#module-shape-trigger'))`);
         await client.evaluate(`(async () => {
@@ -1933,6 +1984,7 @@ test("Generator product events audit real SDK traffic and survive analytics fail
         input.dispatchEvent(new Event('input', { bubbles: true }));
     })()`);
     const exportAndReset = async () => {
+        await waitFor(client, "document.querySelector('#verification-status').dataset.state === 'verified' && !document.querySelector('#copy-qr').disabled");
         await client.evaluate(`(() => {
             Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { write: async items => {
                 window.__networkCopied44 = await items[0].getType('image/png');
@@ -1957,8 +2009,9 @@ test("Generator product events audit real SDK traffic and survive analytics fail
         await client.send('Network.setUserAgentOverride', { userAgent: (await client.evaluate('navigator.userAgent')).replace('HeadlessChrome', 'Chrome') });
         await client.send('Browser.setDownloadBehavior', { behavior: 'deny' });
         client.on('Runtime.exceptionThrown', event => runtimeErrors.push(event));
-        client.on('Network.requestWillBeSent', ({ request }) => {
-            if (new URL(request.url).origin === 'https://eu.i.posthog.com' && request.method === 'POST') requests.push({ ...request });
+        client.on('Network.requestWillBeSent', ({ requestId, request }) => {
+            if (new URL(request.url).origin === 'https://eu.i.posthog.com' && request.method === 'POST') requests.push({ requestId, ...request });
+            if ([cloudflareBeaconUrl, cloudflareIngestUrl].includes(request.url)) cloudflareRequests.push({ requestId, ...request });
         });
         await client.send('Page.addScriptToEvaluateOnNewDocument', { source: `
             Object.defineProperty(navigator, 'webdriver', { value: false });
@@ -1974,6 +2027,10 @@ test("Generator product events audit real SDK traffic and survive analytics fail
                     requestId, responseCode: 200, responseHeaders: [{ name: 'Content-Type', value: 'text/javascript' }], body: Buffer.from(body).toString('base64'),
                 });
                 if (url.origin === site.origin) {
+                    if (url.pathname === '/assets/cloudflare-bootstrap.mjs') {
+                        const source = readFileSync(resolve(root, 'assets/cloudflare-bootstrap.mjs'), 'utf8');
+                        return fulfill(mode === 'local baseline disabled' ? source : source.replace('origin !== "https://qrspell.app"', `origin !== ${JSON.stringify(site.origin)}`));
+                    }
                     if (url.pathname === '/assets/analytics-config.mjs' && mode !== 'production disabled') {
                         return fulfill(`export const analyticsConfig = Object.freeze({ enabled: true, environment: 'sandbox', token: '${token}' });`);
                     }
@@ -1989,7 +2046,8 @@ test("Generator product events audit real SDK traffic and survive analytics fail
                     if (blocked) return client.send('Fetch.failRequest', { requestId, errorReason: 'BlockedByClient' });
                     return client.send('Fetch.continueRequest', { requestId });
                 }
-                if (url.origin === 'https://eu.i.posthog.com') {
+                if (request.url === cloudflareBeaconUrl) return fulfill(beaconSource);
+                if (url.origin === 'https://eu.i.posthog.com' || request.url === cloudflareIngestUrl) {
                     if (request.method === 'POST' && ['endpoint blocked', 'timeout'].includes(mode)) {
                         return client.send('Fetch.failRequest', { requestId, errorReason: mode === 'timeout' ? 'TimedOut' : 'BlockedByClient' });
                     }
@@ -2062,7 +2120,31 @@ test("Generator product events audit real SDK traffic and survive analytics fail
             const serialized = JSON.stringify(requests);
             assert.equal(await client.evaluate(`${JSON.stringify(serialized)}.includes(window.__privateImage44)`), false);
             assert.deepEqual(await client.evaluate(`({ cookies: document.cookie, local: Object.keys(localStorage), session: Object.keys(sessionStorage) })`), { cookies: '', local: [], session: [] });
-            audit();
+            await waitForRequest(() => cloudflareRequests.some(request => request.method === 'POST'));
+            await audit();
+        });
+
+        await context.test('private referrer paths and queries suppress Cloudflare without affecting product events', async () => {
+            for (const referrer of [`${site.origin}/${canaries[6]}`, `${site.origin}/?secret=${canaries[6]}`, `https://example.com/${canaries[6]}`]) {
+                await load(referrer);
+                await type(canaries[0]);
+                await waitForRequest(() => count('qr_generation_completed') >= 1);
+                await exportAndReset();
+                await waitForRequest(() => count('qr_exported') === 2);
+                assert.deepEqual(cloudflareRequests, [], 'Unsafe referrer must prevent loading the external beacon itself');
+                await audit();
+            }
+        });
+
+        await context.test('the deployed Cloudflare loader sends no production baseline from localhost', async () => {
+            mode = 'local baseline disabled';
+            await load();
+            await type(canaries[0]);
+            await waitForRequest(() => count('qr_generation_completed') >= 1);
+            await exportAndReset();
+            assert.deepEqual(cloudflareRequests, []);
+            await audit();
+            mode = 'allowed';
         });
 
         for (mode of ['production disabled', 'Generator module blocked', 'properties module blocked', 'wrapper blocked', 'SDK blocked', 'capture throws', 'capture rejects', 'endpoint blocked', 'timeout', 'HTTP 4xx', 'HTTP 5xx', 'offline', 'DNT', 'GPC']) {
@@ -2079,7 +2161,8 @@ test("Generator product events audit real SDK traffic and survive analytics fail
                     assert.equal(count('generator_viewed'), 0);
                     assert.equal(count('qr_exported'), 0);
                 } else if (!sends) assert.equal(requests.length, 0);
-                audit();
+                await waitForRequest(() => cloudflareRequests.some(request => request.method === 'POST'));
+                await audit();
             });
         }
         await Promise.all([...pending]);

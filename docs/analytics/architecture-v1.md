@@ -148,9 +148,11 @@ initialization, the implementation must decline analytics when either:
 - `navigator.globalPrivacyControl === true`; or
 - the browser exposes Do Not Track as `"1"` or `"yes"`.
 
-The Privacy Policy must describe the provider, EU region, purposes, event
-categories, retention, cookieless daily identity, limitations, and the ability
-to block the analytics endpoint. A dedicated persistent opt-out control is
+The internal analytics record describes the provider, EU region, purposes,
+event categories, retention, cookieless daily identity, limitations, and
+endpoint-blocking behavior. The public Privacy Policy covers the QRSpell macOS
+app; website implementation details belong in these technical documents.
+A dedicated persistent opt-out control is
 deferred because persisting it would itself require functional browser storage;
 revisit this if the site begins using storage for another user-facing setting.
 
@@ -171,7 +173,8 @@ schema v1.
   is still needed, then delete the PostHog project/account data.
 - Data-subject deletion: schema v1 has no user-supplied identity and no stable
   cross-day identifier, so QRSpell cannot reliably locate a person's events.
-  This limitation must be disclosed rather than promising per-person deletion.
+  Record this limitation in the analytics documentation; do not promise
+  per-person deletion that the implementation cannot provide.
 
 PostHog's retention endpoint reports a plan-controlled, read-only window. If
 the production project cannot enforce a window of 12 months or less, PostHog is
@@ -183,8 +186,8 @@ PostHog acts as a processor for the product-event stream. Production approval
 requires accepting the current PostHog DPA and recording the applicable
 subprocessor list. EU data residency controls primary storage location but does
 not mean processing never occurs outside the protected area; PostHog's DPA
-explicitly describes possible transfers. The Privacy Policy must not claim
-"EU only" or "never leaves the EU."
+explicitly describes possible transfers. Record those boundaries in the
+analytics documentation without claiming "EU only" or "never leaves the EU."
 
 AI features, destinations, data warehouse imports, ad integrations, reverse
 ETL, and external dashboards are not approved for this data set.
@@ -205,7 +208,8 @@ PostHog changes from conditional Go to Go only when all gates pass:
 5. The sandbox demonstrates a safe page view, custom events, property
    breakdown, and an ordered funnel using only schema-v1 fields.
 6. The project retention window is confirmed at 12 months or less.
-7. DPA/subprocessor review and the website Privacy Policy update are complete.
+7. DPA/subprocessor review and the internal provider/data-handling record are
+   complete. The public Privacy Policy continues to cover the macOS app.
 8. CSP allows only the exact vendored script and EU ingestion requirements.
 
 Failure of gates 3, 4, 6, or 7 is an automatic No-go. Other failures may be

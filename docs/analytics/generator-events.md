@@ -100,8 +100,9 @@ Run `node --test scripts/*.test.mjs`,
 
 Manual QA remains: a real tracker blocker, physical clipboard paste, saving the
 browser download to disk, and delivery/raw-event inspection in an approved
-non-production provider project. The broader privacy policy and full release
-canary matrix remain #45 gates.
+non-production provider project. The internal data-handling record, site-wide
+CSP, and full release canary matrix remain #45 gates. The public Privacy Policy
+covers the macOS app.
 
 ## Verification record — 2026-09-29
 

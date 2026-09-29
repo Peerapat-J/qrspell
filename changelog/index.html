@@ -3,6 +3,8 @@
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://static.cloudflareinsights.com/beacon.min.js; style-src 'self'; img-src 'self'; connect-src https://cloudflareinsights.com/cdn-cgi/rum https://eu.i.posthog.com; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'; media-src 'none'">
+        <meta name="referrer" content="no-referrer">
         <title>QRSpell Changelog - Mac Screen QR Scanner Release Notes</title>
         <meta name="description" content="See what's new in QRSpell for Mac: optional URL previews, saved QR previews, History storage controls, and improvements in version 2.1. Read earlier releases too.">
         <link rel="canonical" href="https://qrspell.app/changelog/">
@@ -117,7 +119,7 @@
             </footer>
         </div>
         <!-- Cloudflare Web Analytics -->
-        <script defer src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token":"e43189ed6f5c43d29472b9b18c73b226"}'></script>
+        <script type="module" src="../assets/cloudflare-bootstrap.mjs?v=20260929a" data-cf-beacon='{"token":"e43189ed6f5c43d29472b9b18c73b226","spa":false}'></script>
         <!-- End Cloudflare Web Analytics -->
     </body>
 </html>

@@ -58,6 +58,10 @@ an instance after that timeout.
 - Generator CSP retains the exact Cloudflare script/ingest permissions and
   adds only `https://eu.i.posthog.com` to `connect-src`. The SDK stays local;
   no PostHog script origin, wildcard, or unsafe-eval is allowed.
+- The same connection/script restrictions cover every public HTML page.
+  Cloudflare uses a separate guarded local loader; unsafe incoming referrers,
+  non-production origins and webdriver contexts prevent its external script
+  from loading. See [cloudflare-baseline.md](cloudflare-baseline.md).
 
 ## Automated verification
 
@@ -74,8 +78,11 @@ blocked ingestion, timeout, HTTP 400/503, offline signal, DNT, and GPC.
 Copy uses a clipboard stub; browser downloads are initiated and denied by
 the test harness. Physical clipboard/disk and tracker-blocker QA remain manual.
 
-The complete content/image/referrer/error canary matrix after instrumentation
-and the production Privacy Policy remain #45 release gates.
+The content/image/referrer/error canary matrix, site-wide CSP, guarded Cloudflare
+loader and internal provider/data-handling record are covered in the
+[#45 verification record](issue-45-validation.md). That record includes current
+automated results and the remaining manual release gates. The public Privacy
+Policy covers the macOS app.
 
 ## Manual checklist
 
