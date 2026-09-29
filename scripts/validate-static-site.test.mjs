@@ -12,16 +12,20 @@ const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const fixture = mkdtempSync(join(tmpdir(), "qrspell-canonical-test-"));
 after(() => rmSync(fixture, { recursive: true, force: true }));
 
-// The fixture changes HTML only; other site files are read through symlinks.
+// Copy every HTML page so mutation tests cannot write through to the checkout.
+const htmlDirectories = ["qr-code-generator", "privacy", "Acknowledgements", "changelog", "helpcenter", "legal"];
 for (const entry of readdirSync(root, { withFileTypes: true })) {
-    if ([".git", "scripts", "index.html", "qr-code-generator"].includes(entry.name)) {
+    if ([".git", "scripts", "index.html", ...htmlDirectories].includes(entry.name)) {
         continue;
     }
     symlinkSync(join(root, entry.name), join(fixture, entry.name), entry.isDirectory() ? "dir" : "file");
 }
-mkdirSync(join(fixture, "qr-code-generator"));
-for (const entry of readdirSync(join(root, "qr-code-generator"))) {
-    if (entry !== "index.html") symlinkSync(join(root, "qr-code-generator", entry), join(fixture, "qr-code-generator", entry));
+for (const directory of htmlDirectories) {
+    mkdirSync(join(fixture, directory));
+    for (const entry of readdirSync(join(root, directory))) {
+        if (entry === "index.html") copyFileSync(join(root, directory, entry), join(fixture, directory, entry));
+        else symlinkSync(join(root, directory, entry), join(fixture, directory, entry));
+    }
 }
 const generator = readFileSync(join(root, "qr-code-generator/index.html"), "utf8");
 writeFileSync(join(fixture, "qr-code-generator/index.html"), generator);
@@ -101,6 +105,37 @@ test("Generator analytics coverage and CSP reject unsafe regressions", async (co
         }
     } finally {
         writeFileSync(join(fixture, "qr-code-generator/index.html"), generator);
+    }
+});
+
+test("every website page rejects broadened CSP and referrer permissions", async context => {
+    writeFileSync(join(fixture, "index.html"), homepage);
+    for (const file of ["index.html", ...htmlDirectories.map(directory => `${directory}/index.html`)]) {
+        const original = readFileSync(join(root, file), "utf8");
+        const policy = original.match(/<meta http-equiv="Content-Security-Policy"[^>]*>/u)[0];
+        const mutations = [
+            ["missing policy", original.replace(policy, ""), /CSP must allow only/u],
+            ["duplicate policy", original.replace(policy, policy + policy), /CSP must allow only/u],
+            ["unrelated origin", original.replace("connect-src ", "connect-src https://example.com "), /CSP must allow only/u],
+            ["broad HTTPS", original.replace("connect-src ", "connect-src https: "), /CSP must allow only/u],
+            ["unsafe eval", original.replace("script-src 'self'", "script-src 'self' 'unsafe-eval'"), /CSP must allow only/u],
+            ["inline script", original.replace("script-src 'self'", "script-src 'self' 'unsafe-inline'"), /CSP must allow only/u],
+            ["missing referrer policy", original.replace('<meta name="referrer" content="no-referrer">', ""), /no-referrer policy/u],
+            ["leaking referrer", original.replace('content="no-referrer"', 'content="unsafe-url"'), /no-referrer policy/u],
+        ];
+        try {
+            for (const [name, html, message] of mutations) {
+                await context.test(`${file}: ${name}`, () => {
+                    writeFileSync(join(fixture, file), html);
+                    const result = spawnSync(process.execPath, [validator], { encoding: "utf8" });
+                    assert.ifError(result.error);
+                    assert.equal(result.status, 1, result.stdout + result.stderr);
+                    assert.match(result.stderr, message);
+                });
+            }
+        } finally {
+            writeFileSync(join(fixture, file), original);
+        }
     }
 });
 

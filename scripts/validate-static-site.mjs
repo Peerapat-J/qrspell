@@ -73,6 +73,7 @@ for (const htmlFile of htmlFiles) {
     validateHtmlReferences(htmlFile, html);
     validateHtmlAnchors(htmlFile, html);
     validateCloudflareBeacon(htmlFile, html);
+    validateAnalyticsCsp(htmlFile, html);
     validateAnalyticsBootstrap(htmlFile, html);
     validateAnalyticsRoute(htmlFile, html);
     validateAppStoreSources(htmlFile, html);
@@ -187,17 +188,17 @@ function validateCloudflareBeacon(htmlFile, html) {
         if (Object.keys(parsedBeaconConfig).sort().join(",") !== "spa,token" || parsedBeaconConfig.spa !== false) {
             errors.push(`${htmlFile} beacon configuration must contain only the site token and spa: false.`);
         }
-        validateGeneratorCsp(htmlFile, html);
     }
 }
 
-function validateGeneratorCsp(htmlFile, html) {
+function validateAnalyticsCsp(htmlFile, html) {
+    const generator = htmlFile === "qr-code-generator/index.html";
     const policies = [...html.matchAll(/<meta\b[^>]*http-equiv="Content-Security-Policy"[^>]*content="([^"]*)"[^>]*>/giu)];
     const expected = new Map([
         ["default-src", ["'none'"]],
         ["script-src", ["'self'", "https://static.cloudflareinsights.com/beacon.min.js"]],
-        ["style-src", ["'self'", "'unsafe-inline'"]],
-        ["img-src", ["'self'", "data:", "blob:"]],
+        ["style-src", generator ? ["'self'", "'unsafe-inline'"] : ["'self'"]],
+        ["img-src", generator ? ["'self'", "data:", "blob:"] : ["'self'"]],
         ["connect-src", ["https://cloudflareinsights.com/cdn-cgi/rum", "https://eu.i.posthog.com"]],
         ...["object-src", "base-uri", "form-action", "frame-src", "media-src"].map((name) => [name, ["'none'"]]),
     ]);
@@ -209,6 +210,10 @@ function validateGeneratorCsp(htmlFile, html) {
         return false;
     }) || expected.size !== 0) {
         errors.push(`${htmlFile} CSP must allow only local assets and the exact Cloudflare beacon and approved ingestion URLs.`);
+    }
+    const referrers = [...html.matchAll(/<meta\b[^>]*name="referrer"[^>]*content="([^"]*)"[^>]*>/giu)];
+    if (referrers.length !== 1 || referrers[0][1] !== "no-referrer") {
+        errors.push(`${htmlFile} must have exactly one no-referrer policy.`);
     }
 }
 

@@ -1585,6 +1585,8 @@ test("website events audit SDK envelopes and native navigation without productio
         });
         await client.send("Page.addScriptToEvaluateOnNewDocument", { source: `
             // Only this intercepted loopback sandbox simulates a human browser.
+            window.__siteCspViolations = [];
+            document.addEventListener('securitypolicyviolation', event => window.__siteCspViolations.push(event.effectiveDirective));
             Object.defineProperty(navigator, 'webdriver', { value: false });
             const mode = new URL(location.href).searchParams.get('mode');
             if (mode === 'GPC') Object.defineProperty(navigator, 'globalPrivacyControl', { value: true });
@@ -1643,12 +1645,31 @@ test("website events audit SDK envelopes and native navigation without productio
             for (const [path, route] of [["/", "home"], ["/qr-code-generator/", "generator"], ["/changelog/", "changelog"], ["/privacy/", "privacy"], ["/helpcenter/", "helpcenter"], ["/Acknowledgements/", "acknowledgements"]]) {
                 assert.equal(await load(path), true);
                 await waitForRequest(() => websiteEvents().length === 1);
+                await waitFor(client, "document.styleSheets.length > 0 && document.images[0]?.naturalWidth > 0");
+                assert.deepEqual(await client.evaluate("window.__siteCspViolations"), [], `${route} assets and SDK must work under CSP`);
                 await client.evaluate(`document.body.append(document.createTextNode(${JSON.stringify(canaries[3])})); location.hash = 'changed';`);
                 assert.equal(await client.evaluate(`(async () => (await import('/assets/site-analytics.mjs')).startSiteAnalytics())()`), true);
                 assert.deepEqual(websiteEvents().map(event => [event.event, event.properties.route]), [["site_page_viewed", route]]);
                 assert.deepEqual(await client.evaluate("({ cookies: document.cookie, local: Object.keys(localStorage), session: Object.keys(sessionStorage) })"), { cookies: "", local: [], session: [] });
                 audit();
             }
+        });
+
+        await context.test("site-wide CSP preserves the image gallery and Help Center copy controls", async () => {
+            await load();
+            await client.evaluate("document.querySelector('.app-preview-trigger').click()");
+            await waitFor(client, "document.querySelector('.image-lightbox').open && document.querySelector('.image-lightbox-image').naturalWidth > 0");
+            await pressKey(client, "Escape");
+            assert.equal(await client.evaluate("document.querySelector('.image-lightbox').open"), false);
+            assert.deepEqual(await client.evaluate("window.__siteCspViolations"), []);
+            await load("/helpcenter/");
+            await client.evaluate(`Object.defineProperty(navigator, 'clipboard', { configurable: true, value: {
+                writeText: async value => { window.__helpCopied45 = value; }
+            } }); document.querySelector('[data-copy-value]').click();`);
+            await waitFor(client, "document.querySelector('[data-copy-value]').dataset.copyState === 'success'");
+            assert.equal(await client.evaluate("window.__helpCopied45"), await client.evaluate("document.querySelector('[data-copy-value]').dataset.copyValue"));
+            assert.deepEqual(await client.evaluate("window.__siteCspViolations"), []);
+            audit();
         });
 
         await context.test("legal redirect stays immediate and reports its destination document", async () => {
