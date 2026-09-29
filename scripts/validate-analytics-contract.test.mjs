@@ -181,3 +181,41 @@ test("sandbox keeps every privacy-critical PostHog control enabled", () => {
         assert.match(source, new RegExp(expected.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&"), "u"));
     }
 });
+
+test("campaign policy cannot enable raw referrer or persistent attribution", () => {
+    for (const patch of [{ referrer: "hostname" }, { persistence: "localStorage" }, { max_query_length: 99999 }, { max_value_length: 99999 }, { utm_keys: ["utm_source", "email"] }]) {
+        const contract = structuredClone(loadAnalyticsContract());
+        Object.assign(contract.campaign_attribution, patch);
+        assert.equal(validateAnalyticsContract(contract).ok, false);
+    }
+});
+
+test("future campaign registration must use normalized closed enums", () => {
+    const contract = structuredClone(loadAnalyticsContract());
+    contract.events.site_page_viewed.properties.utm_source = { enum: ["github"] };
+    assert.equal(validateAnalyticsContract(contract).ok, true);
+    for (const rule of [{ const: "github" }, { enum: [] }, { enum: ["person@example.com"] }, { enum: ["GitHub"] }, { enum: ["x".repeat(65)] }]) {
+        contract.events.site_page_viewed.properties.utm_source = rule;
+        assert.equal(validateAnalyticsContract(contract).ok, false);
+    }
+    contract.events.site_page_viewed.properties.utm_source = { enum: ["github"] };
+    contract.events.site_page_viewed.properties.utm_term = { enum: ["private"] };
+    assert.equal(validateAnalyticsContract(contract).ok, false);
+});
+
+for (const eventName of ["site_page_viewed", "app_store_clicked"]) {
+    for (const key of ["utm_source", "utm_medium", "utm_campaign"]) {
+        test(`${eventName}.${key} must remain optional when campaigns are registered`, () => {
+            const contract = structuredClone(loadAnalyticsContract());
+            const definition = contract.events[eventName];
+            definition.properties[key] = { enum: ["test-campaign"] };
+            assert.deepEqual(validateAnalyticsContract(contract), { ok: true, errors: [] });
+
+            definition.required.push(key);
+            assert.deepEqual(validateAnalyticsContract(contract), {
+                ok: false,
+                errors: [`${eventName}.${key} must remain optional.`],
+            });
+        });
+    }
+}

@@ -3,6 +3,7 @@ import { existsSync, readFileSync, statSync } from "node:fs";
 import { dirname, join, normalize, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { analyticsConfig } from "../assets/analytics-config.mjs";
+import { analyticsSchema } from "../assets/analytics-schema.mjs";
 
 const root = normalize(join(dirname(fileURLToPath(import.meta.url)), ".."));
 const siteOrigin = process.env.SITE_ORIGIN ?? "https://qrspell.app";
@@ -16,7 +17,7 @@ const requiredFiles = [
     "sitemap.xml",
     "styles.css",
     "site.js",
-    ...["analytics", "analytics-config", "analytics-schema", "analytics-contract", "analytics-posthog", "analytics-bootstrap"].map(name => `assets/${name}.mjs`),
+    ...["analytics", "analytics-config", "analytics-schema", "analytics-contract", "analytics-posthog", "analytics-bootstrap", "site-analytics"].map(name => `assets/${name}.mjs`),
     "assets/vendor/posthog/posthog.mjs",
     "assets/vendor/posthog/LICENSE",
     "assets/vendor/posthog/README.md",
@@ -71,6 +72,8 @@ for (const htmlFile of htmlFiles) {
     validateHtmlAnchors(htmlFile, html);
     validateCloudflareBeacon(htmlFile, html);
     validateAnalyticsBootstrap(htmlFile, html);
+    validateAnalyticsRoute(htmlFile, html);
+    validateAppStoreSources(htmlFile, html);
 }
 
 validateAnalyticsBundle();
@@ -404,7 +407,7 @@ function normalizeSiteBasePath(basePath) {
 function validateAnalyticsBootstrap(htmlFile, html) {
     const scripts = [...html.matchAll(/<script\b[^>]*analytics-bootstrap\.mjs[^>]*><\/script>/giu)];
     const prefix = htmlFile === "index.html" ? "" : "../";
-    const expected = `<script type="module" src="${prefix}assets/analytics-bootstrap.mjs?v=20260928a"></script>`;
+    const expected = `<script type="module" src="${prefix}assets/analytics-bootstrap.mjs?v=20260929a"></script>`;
     if (scripts.length !== 1 || scripts[0][0] !== expected) {
         errors.push(`${htmlFile} must load exactly one local analytics bootstrap module.`);
     }
@@ -421,5 +424,43 @@ function validateAnalyticsBundle() {
     }
     if (analyticsConfig.enabled !== false || analyticsConfig.environment !== "production" || analyticsConfig.token !== "") {
         errors.push("Production analytics must remain disabled until the production gates pass.");
+    }
+}
+
+function validateAnalyticsRoute(htmlFile, html) {
+    const routeByFile = {
+        "index.html": "home", "qr-code-generator/index.html": "generator",
+        "privacy/index.html": "privacy", "legal/index.html": "legal",
+        "Acknowledgements/index.html": "acknowledgements",
+        "changelog/index.html": "changelog", "helpcenter/index.html": "helpcenter",
+    };
+    const body = html.match(/<body\b[^>]*>/iu)?.[0] ?? "";
+    const routes = [...body.matchAll(/\sdata-analytics-route\s*=\s*["']([^"']*)["']/giu)];
+    if (routes.length !== 1 || routes[0][1] !== routeByFile[htmlFile]) {
+        errors.push(`${htmlFile} must declare exactly one matching analytics route.`);
+    }
+}
+
+function validateAppStoreSources(htmlFile, html) {
+    const storeUrl = "https://apps.apple.com/app/id6771453521";
+    const header = html.match(/<header\b[\s\S]*?<\/header>/iu);
+    const footer = html.match(/<footer\b[\s\S]*?<\/footer>/iu);
+    const within = (match, region) => region && match.index >= region.index && match.index < region.index + region[0].length;
+    for (const match of html.matchAll(/<([a-z][a-z0-9-]*)\b((?:[^"'<>]|"[^"]*"|'[^']*')*)>/giu)) {
+        const attributes = [...match[2].matchAll(/([^\s"'<>/=]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+))/gu)]
+            .map(([, key, double, single, unquoted]) => [key.toLowerCase(), double ?? single ?? unquoted]);
+        const hrefs = attributes.filter(([key]) => key === "href");
+        const sources = attributes.filter(([key]) => key === "data-analytics-source");
+        const isStoreLink = match[1].toLowerCase() === "a" && hrefs.some(([, value]) => value === storeUrl);
+        if (!isStoreLink) {
+            if (sources.length) errors.push(`${htmlFile} analytics source must belong to a QRSpell App Store link.`);
+            continue;
+        }
+        const expected = within(match, header) ? "header" : within(match, footer) ? "footer"
+            : htmlFile === "index.html" ? "homepage_hero" : htmlFile === "qr-code-generator/index.html" ? "generator_cta" : null;
+        if (hrefs.length !== 1 || sources.length !== 1 || sources[0][1] !== expected
+            || !analyticsSchema.events.app_store_clicked.properties.source.enum.includes(sources[0]?.[1])) {
+            errors.push(`${htmlFile} App Store CTA must have exactly one matching analytics source.`);
+        }
     }
 }
