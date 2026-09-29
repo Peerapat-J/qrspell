@@ -74,6 +74,9 @@ export function validateAnalyticsContract(contract) {
                     } else if (!Object.hasOwn(definition.properties, requiredName)) {
                         errors.push(`${eventName} requires undefined property ${requiredName}.`);
                     }
+                    if (approvedKeys.includes(requiredName)) {
+                        errors.push(`${eventName}.${requiredName} must remain optional.`);
+                    }
                 }
             }
         }
