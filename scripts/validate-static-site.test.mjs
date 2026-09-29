@@ -66,6 +66,12 @@ test("Generator analytics coverage and CSP reject unsafe regressions", async (co
     writeFileSync(join(fixture, "index.html"), homepage);
     const beacon = generator.match(/<script\b[^>]*data-cf-beacon='[^']+'[^>]*><\/script>/u)[0];
     const mutations = [
+        ["missing analytics bootstrap", generator.replace(/<script type="module" src="\.\.\/assets\/analytics-bootstrap\.mjs[^>]*><\/script>/u, ""), /exactly one local analytics bootstrap/u],
+        ["duplicate analytics bootstrap", generator.replace('</head>', '<script type="module" src="../assets/analytics-bootstrap.mjs?v=20260928a"></script></head>'), /exactly one local analytics bootstrap/u],
+        ["direct provider script", generator.replace('</head>', '<script src="https://eu.i.posthog.com/static/array.js"></script></head>'), /only through its optional bootstrap/u],
+        ["missing EU ingestion", generator.replace(" https://eu.i.posthog.com;", ";"), /CSP must allow only/u],
+        ["US ingestion", generator.replace("https://eu.i.posthog.com", "https://us.i.posthog.com"), /CSP must allow only/u],
+        ["PostHog script origin", generator.replace("script-src 'self'", "script-src 'self' https://eu.i.posthog.com"), /CSP must allow only/u],
         ["missing beacon", generator.replace(beacon, ""), /exactly one Cloudflare/u],
         ["duplicate beacon", generator.replace(beacon, beacon + beacon), /exactly one Cloudflare/u],
         ["wrong token", generator.replace("e43189ed6f5c43d29472b9b18c73b226", "wrong"), /token does not match/u],

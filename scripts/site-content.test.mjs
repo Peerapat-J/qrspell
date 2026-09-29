@@ -101,7 +101,7 @@ test("QR generation stays local with narrowly scoped optional traffic analytics"
     ].join("\n");
     assert.match(generator, /http-equiv="Content-Security-Policy"/u);
     assert.match(generator, /script-src 'self' https:\/\/static\.cloudflareinsights\.com\/beacon\.min\.js;/u);
-    assert.match(generator, /connect-src https:\/\/cloudflareinsights\.com\/cdn-cgi\/rum;/u);
+    assert.match(generator, /connect-src https:\/\/cloudflareinsights\.com\/cdn-cgi\/rum https:\/\/eu\.i\.posthog\.com;/u);
     const scripts = [...generator.matchAll(/<script\b[^>]*data-cf-beacon='([^']+)'[^>]*><\/script>/gu)];
     assert.equal(scripts.length, 1);
     assert.deepEqual(JSON.parse(scripts[0][1]), { token: "e43189ed6f5c43d29472b9b18c73b226", spa: false });
