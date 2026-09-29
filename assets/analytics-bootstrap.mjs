@@ -1,2 +1,2 @@
-// Kept independent of Generator/site startup: even module-load failure is optional.
-import("./analytics.mjs").then(({ initAnalytics }) => initAnalytics()).catch(() => {});
+// Independent of Generator/site startup: imports and initialization are optional.
+import("./site-analytics.mjs").then(({ startSiteAnalytics }) => startSiteAnalytics()).catch(() => {});

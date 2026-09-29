@@ -16,7 +16,7 @@ const requiredFiles = [
     "sitemap.xml",
     "styles.css",
     "site.js",
-    ...["analytics", "analytics-config", "analytics-schema", "analytics-contract", "analytics-posthog", "analytics-bootstrap"].map(name => `assets/${name}.mjs`),
+    ...["analytics", "analytics-config", "analytics-schema", "analytics-contract", "analytics-posthog", "analytics-bootstrap", "site-analytics"].map(name => `assets/${name}.mjs`),
     "assets/vendor/posthog/posthog.mjs",
     "assets/vendor/posthog/LICENSE",
     "assets/vendor/posthog/README.md",
@@ -404,7 +404,7 @@ function normalizeSiteBasePath(basePath) {
 function validateAnalyticsBootstrap(htmlFile, html) {
     const scripts = [...html.matchAll(/<script\b[^>]*analytics-bootstrap\.mjs[^>]*><\/script>/giu)];
     const prefix = htmlFile === "index.html" ? "" : "../";
-    const expected = `<script type="module" src="${prefix}assets/analytics-bootstrap.mjs?v=20260928a"></script>`;
+    const expected = `<script type="module" src="${prefix}assets/analytics-bootstrap.mjs?v=20260929a"></script>`;
     if (scripts.length !== 1 || scripts[0][0] !== expected) {
         errors.push(`${htmlFile} must load exactly one local analytics bootstrap module.`);
     }
