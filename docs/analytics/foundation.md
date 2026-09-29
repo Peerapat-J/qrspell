@@ -78,9 +78,11 @@ blocked ingestion, timeout, HTTP 400/503, offline signal, DNT, and GPC.
 Copy uses a clipboard stub; browser downloads are initiated and denied by
 the test harness. Physical clipboard/disk and tracker-blocker QA remain manual.
 
-The complete content/image/referrer/error canary matrix after instrumentation,
-site-wide CSP, and the internal provider/data-handling record remain #45 release
-gates. The public Privacy Policy covers the macOS app.
+The content/image/referrer/error canary matrix, site-wide CSP, guarded Cloudflare
+loader and internal provider/data-handling record are covered in the
+[#45 verification record](issue-45-validation.md). That record includes current
+automated results and the remaining manual release gates. The public Privacy
+Policy covers the macOS app.
 
 ## Manual checklist
 
