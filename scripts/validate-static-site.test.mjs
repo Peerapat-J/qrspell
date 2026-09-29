@@ -113,3 +113,19 @@ test("website routes must be present, unique, and match their page", () => {
     }
     writeFileSync(join(fixture, "index.html"), homepage);
 });
+
+test("CTA sources must be present, unique, and match their position", () => {
+    writeFileSync(join(fixture, "index.html"), homepage);
+    for (const replacement of ["", 'data-analytics-source="footer"', 'data-analytics-source="header" data-analytics-source="header"']) {
+        writeFileSync(join(fixture, "qr-code-generator/index.html"), generator.replace('data-analytics-source="header"', replacement));
+        const result = spawnSync(process.execPath, [validator], { encoding: "utf8" });
+        assert.equal(result.status, 1);
+        assert.match(result.stderr, /exactly one matching analytics source/u);
+    }
+    writeFileSync(join(fixture, "qr-code-generator/index.html"), generator);
+    writeFileSync(join(fixture, "index.html"), homepage.replace('href="qr-code-generator/"', 'data-analytics-source="header" href="qr-code-generator/"'));
+    const result = spawnSync(process.execPath, [validator], { encoding: "utf8" });
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /source must belong to a QRSpell App Store link/u);
+    writeFileSync(join(fixture, "index.html"), homepage);
+});

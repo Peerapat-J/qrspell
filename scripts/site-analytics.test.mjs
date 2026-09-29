@@ -61,3 +61,48 @@ test("capture failures stay optional", async () => {
         assert.equal(await startSiteAnalytics({ document: siteDocument(), analytics: { initAnalytics: () => true, captureEvent } }), true);
     }
 });
+
+const storeUrl = "https://apps.apple.com/app/id6771453521";
+function activate(document, { source = "header", href = storeUrl, type = "click", button = 0, canceled = false } = {}) {
+    const link = { getAttribute: key => key === "href" ? href : source };
+    const event = new Event(type, { cancelable: true });
+    Object.defineProperties(event, { target: { value: { closest: () => link } }, button: { value: button } });
+    if (canceled) event.preventDefault();
+    document.dispatchEvent(event);
+    return event;
+}
+
+test("all CTA sources capture once and preserve default activation", async () => {
+    const document = siteDocument();
+    const events = [];
+    const analytics = { initAnalytics: () => true, captureEvent: (...args) => events.push(args) };
+    await startSiteAnalytics({ document, analytics });
+    await startSiteAnalytics({ document, analytics });
+    for (const source of ["header", "homepage_hero", "generator_cta", "footer"]) {
+        assert.equal(activate(document, { source }).defaultPrevented, false);
+    }
+    assert.deepEqual(events.slice(1), ["header", "homepage_hero", "generator_cta", "footer"].map(source => ["app_store_clicked", { source }]));
+});
+
+test("early, canceled, unknown, and unrelated activations are dropped", async () => {
+    const document = siteDocument();
+    const events = [];
+    let finish;
+    const analytics = { initAnalytics: () => new Promise(resolve => { finish = resolve; }), captureEvent: (...args) => events.push(args) };
+    const started = startSiteAnalytics({ document, analytics });
+    assert.equal(activate(document).defaultPrevented, false);
+    assert.deepEqual(events, []);
+    await Promise.resolve();
+    finish(true);
+    await started;
+    for (const options of [{ canceled: true }, { source: "secret" }, { href: "https://other.example" }, { button: 2 }, { type: "auxclick", button: 2 }]) activate(document, options);
+    assert.equal(events.length, 1);
+    activate(document, { type: "auxclick", button: 1 });
+    assert.deepEqual(events[1], ["app_store_clicked", { source: "header" }]);
+});
+
+test("capture failure never cancels link navigation", async () => {
+    const document = siteDocument();
+    await startSiteAnalytics({ document, analytics: { initAnalytics: () => true, captureEvent: () => { throw new Error("blocked"); } } });
+    assert.equal(activate(document).defaultPrevented, false);
+});
