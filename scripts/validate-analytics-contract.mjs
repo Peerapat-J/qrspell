@@ -15,6 +15,25 @@ export function validateAnalyticsContract(contract) {
     const forbiddenProperties = contract.forbidden_property_names;
     const forbiddenNames = new Set(Array.isArray(forbiddenProperties) ? forbiddenProperties : []);
 
+    const attribution = contract.campaign_attribution;
+    const approvedKeys = ["utm_source", "utm_medium", "utm_campaign"];
+    if (!isPlainObject(attribution)
+        || JSON.stringify(attribution.utm_keys) !== JSON.stringify(approvedKeys)
+        || attribution.max_query_length !== 2048 || attribution.max_value_length !== 64
+        || attribution.referrer !== "disabled" || attribution.persistence !== "none") {
+        errors.push("Campaign attribution must use the approved bounded, non-persistent UTM policy.");
+    }
+    for (const definition of Object.values(contract.events ?? {})) {
+        if (!isPlainObject(definition)) continue;
+        for (const [key, rule] of Object.entries(definition.properties ?? {})) {
+            if (!key.startsWith("utm_")) continue;
+            if (!approvedKeys.includes(key) || !Array.isArray(rule?.enum) || rule.enum.length === 0
+                || rule.enum.some(value => typeof value !== "string" || !/^[a-z0-9][a-z0-9_-]{0,63}$/u.test(value))) {
+                errors.push(`${key} must use approved campaign names in a closed normalized enum.`);
+            }
+        }
+    }
+
     if (contract.schema_version !== 1) errors.push("schema_version must be 1.");
     if (!Array.isArray(transportProperties) || transportProperties.length === 0) {
         errors.push("provider_transport_property_allowlist must be a non-empty array.");

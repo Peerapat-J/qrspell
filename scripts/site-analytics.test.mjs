@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { startSiteAnalytics } from "../assets/site-analytics.mjs";
+import { startSiteAnalytics, readCampaignAttribution } from "../assets/site-analytics.mjs";
 
 test("site initialization is shared even while the provider is loading", async () => {
     const document = siteDocument();
@@ -105,4 +105,47 @@ test("capture failure never cancels link navigation", async () => {
     const document = siteDocument();
     await startSiteAnalytics({ document, analytics: { initAnalytics: () => true, captureEvent: () => { throw new Error("blocked"); } } });
     assert.equal(activate(document).defaultPrevented, false);
+});
+
+// Explicit fixture campaign names are never added to the deployed contract.
+const campaignFixture = { properties: {
+    utm_source: { enum: ["github"] }, utm_medium: { enum: ["referral"] }, utm_campaign: { enum: ["test-campaign"] },
+} };
+
+test("campaign parser normalizes only registered values and ignores arbitrary keys", () => {
+    assert.deepEqual(readCampaignAttribution("?utm_source=%20GitHub%20&utm_medium=REFERRAL&utm_campaign=test-campaign&email=SECRET&utm_term=SECRET", campaignFixture), {
+        utm_source: "github", utm_medium: "referral", utm_campaign: "test-campaign",
+    });
+});
+
+test("campaign parser drops duplicate, private, malformed, and oversized values", () => {
+    for (const search of [
+        "?utm_source=github&utm_source=github", "?utm_source=github&utm_source=SECRET",
+        "?utm_source=person%40example.com", "?utm_source=https%3A%2F%2Fsecret.example",
+        "?utm_source=github%00", "?utm_source=github%", "?utm_source=%E0%A4%A",
+        "?utm_source=constructor", "?utm_source=github%2540example.com",
+        "?utm_source=" + " ".repeat(65) + "github", "?utm_source=github&secret=" + "x".repeat(2048),
+        null, { toString: () => "?utm_source=github" },
+    ]) assert.deepEqual(readCampaignAttribution(search, campaignFixture), {}, String(search));
+    assert.deepEqual(readCampaignAttribution("?utm_source=SECRET&utm_medium=referral", campaignFixture), { utm_medium: "referral" });
+});
+
+test("deployed contract collects no UTM or referrer until real campaigns are registered", async () => {
+    assert.deepEqual(readCampaignAttribution("?utm_source=github&utm_campaign=test-campaign"), {});
+    const document = siteDocument();
+    document.location = { search: "?utm_source=PRIVATE43&utm_campaign=PRIVATE43" };
+    Object.defineProperty(document, "referrer", { get: () => assert.fail("raw referrer must never be read") });
+    const events = [];
+    await startSiteAnalytics({ document, analytics: { initAnalytics: () => true, captureEvent: (...args) => events.push(args) } });
+    activate(document);
+    assert.deepEqual(events, [["site_page_viewed", { route: "home" }], ["app_store_clicked", { source: "header" }]]);
+});
+
+test("unreadable campaign inputs cannot suppress the page view or CTA", async () => {
+    const document = siteDocument();
+    Object.defineProperty(document, "location", { get: () => { throw new Error("unavailable"); } });
+    const events = [];
+    await startSiteAnalytics({ document, analytics: { initAnalytics: () => true, captureEvent: (...args) => events.push(args) } });
+    activate(document);
+    assert.equal(events.length, 2);
 });

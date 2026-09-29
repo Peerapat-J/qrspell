@@ -295,7 +295,18 @@ const schema = {
     "dom_node",
     "data_url",
     "free_form_text"
-  ]
+  ],
+  "campaign_attribution": {
+    "utm_keys": [
+      "utm_source",
+      "utm_medium",
+      "utm_campaign"
+    ],
+    "max_query_length": 2048,
+    "max_value_length": 64,
+    "referrer": "disabled",
+    "persistence": "none"
+  }
 };
 
 function freeze(value) {
