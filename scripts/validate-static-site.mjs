@@ -17,6 +17,7 @@ const requiredFiles = [
     "sitemap.xml",
     "styles.css",
     "site.js",
+    "assets/cloudflare-bootstrap.mjs",
     ...["analytics", "analytics-config", "analytics-schema", "analytics-contract", "analytics-posthog", "analytics-bootstrap", "site-analytics"].map(name => `assets/${name}.mjs`),
     "assets/vendor/posthog/posthog.mjs",
     "assets/vendor/posthog/LICENSE",
@@ -156,7 +157,7 @@ function validateHtmlAnchors(htmlFile, html) {
 
 function validateCloudflareBeacon(htmlFile, html) {
     const beaconScripts = [
-        ...html.matchAll(/<script\b[^>]*static\.cloudflareinsights\.com\/beacon\.min\.js[^>]*><\/script>/giu),
+        ...html.matchAll(/<script\b[^>]*src="(?:\.\.\/)?assets\/cloudflare-bootstrap\.mjs(?:\?[^"<>]*)?"[^>]*><\/script>/giu),
     ];
 
     if (beaconScripts.length !== 1) {
@@ -183,11 +184,11 @@ function validateCloudflareBeacon(htmlFile, html) {
     if (parsedBeaconConfig.token !== cloudflareBeaconToken) {
         errors.push(`${htmlFile} Cloudflare Web Analytics token does not match the expected token.`);
     }
-
-    if (htmlFile === "qr-code-generator/index.html") {
-        if (Object.keys(parsedBeaconConfig).sort().join(",") !== "spa,token" || parsedBeaconConfig.spa !== false) {
-            errors.push(`${htmlFile} beacon configuration must contain only the site token and spa: false.`);
-        }
+    if (!/type="module"/u.test(beaconScripts[0][0]) || /<script\b[^>]*src="https:\/\/static\.cloudflareinsights\.com/u.test(html)) {
+        errors.push(`${htmlFile} must load Cloudflare only through the guarded local module.`);
+    }
+    if (Object.keys(parsedBeaconConfig).sort().join(",") !== "spa,token" || parsedBeaconConfig.spa !== false) {
+        errors.push(`${htmlFile} beacon configuration must contain only the site token and spa: false.`);
     }
 }
 

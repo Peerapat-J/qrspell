@@ -77,6 +77,7 @@ test("Generator analytics coverage and CSP reject unsafe regressions", async (co
         ["US ingestion", generator.replace("https://eu.i.posthog.com", "https://us.i.posthog.com"), /CSP must allow only/u],
         ["PostHog script origin", generator.replace("script-src 'self'", "script-src 'self' https://eu.i.posthog.com"), /CSP must allow only/u],
         ["missing beacon", generator.replace(beacon, ""), /exactly one Cloudflare/u],
+        ["unguarded beacon", generator.replace('</head>', '<script src="https://static.cloudflareinsights.com/beacon.min.js"></script></head>'), /guarded local module/u],
         ["duplicate beacon", generator.replace(beacon, beacon + beacon), /exactly one Cloudflare/u],
         ["wrong token", generator.replace("e43189ed6f5c43d29472b9b18c73b226", "wrong"), /token does not match/u],
         ["automatic SPA measurement", generator.replace('"spa":false', '"spa":true'), /configuration must contain only/u],

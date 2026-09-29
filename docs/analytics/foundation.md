@@ -58,6 +58,10 @@ an instance after that timeout.
 - Generator CSP retains the exact Cloudflare script/ingest permissions and
   adds only `https://eu.i.posthog.com` to `connect-src`. The SDK stays local;
   no PostHog script origin, wildcard, or unsafe-eval is allowed.
+- The same connection/script restrictions cover every public HTML page.
+  Cloudflare uses a separate guarded local loader; unsafe incoming referrers,
+  non-production origins and webdriver contexts prevent its external script
+  from loading. See [cloudflare-baseline.md](cloudflare-baseline.md).
 
 ## Automated verification
 

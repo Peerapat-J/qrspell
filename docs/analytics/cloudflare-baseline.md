@@ -8,15 +8,20 @@ Prepared on 2026-09-28. Production deployment and dashboard verification are pen
 Before #41 the existing site token appeared once on each of these six pages:
 `/`, `/privacy/`, `/changelog/`, `/helpcenter/`, `/legal/`, and `/Acknowledgements/`.
 The Generator adds `/qr-code-generator/` to that baseline with the same token.
-The validator checks all seven HTML files for exactly one beacon and the site token.
-Generator config additionally disables SPA measurement because it is a static page
-and has no route-change analytics. No product-event SDK is added by this change.
+The validator checks all seven HTML files for exactly one guarded local loader,
+the site token, and disabled SPA measurement. All pages are static documents;
+route changes must not forward arbitrary paths. The product-event SDK is a
+separate optional path documented in [foundation.md](foundation.md).
 
-Generator CSP permits the exact HTTPS script
+Site-wide CSP permits the exact HTTPS script
 `https://static.cloudflareinsights.com/beacon.min.js` and ingestion URL
 `https://cloudflareinsights.com/cdn-cgi/rum`. It does not permit wildcard hosts,
 an entire analytics origin, broad HTTPS connections, or same-origin connections.
-QR libraries and Generator runtime remain local assets; they make no network requests.
+The separately approved EU product-event origin is allowed for PostHog. The
+Generator also permits local data/blob images and inline styles needed by its
+renderer; other pages permit only local images/styles. Every page uses
+`no-referrer` for outgoing requests. QR libraries and Generator runtime remain
+local assets; they make no network requests.
 
 ## Data and failure behavior
 
@@ -27,6 +32,17 @@ Cloudflare counts with another provider's funnel numerator or denominator.
 The Cloudflare script reviewed on 2026-09-28 (version 2026.9.1) strips query,
 fragment, username, and password from reported page and referrer URLs. Its hosted
 code can change, so repeat the network canary check before production enablement.
+
+The 2026-09-29 audit found that URL cleaning retains an incoming referrer's path.
+`assets/cloudflare-bootstrap.mjs` therefore loads the hosted beacon only on the
+exact production origin, outside webdriver contexts, and with an empty,
+origin-only, or registered same-origin public referrer. Referrer credentials,
+query/fragment, foreign paths and unknown same-origin paths suppress the beacon
+before any external script request. Local files, localhost and preview origins
+also suppress it. Loader errors leave the page usable. These exclusions reduce
+Cloudflare coverage; its observed counts must not be interpreted as all visits.
+The immediate `/legal/` redirect skips its own beacon and measures the destination
+document, avoiding requests cancelled during navigation.
 
 No QR content, center text or emoji, uploaded file/image, generated SVG/PNG,
 clipboard data, or Generator settings are passed to the beacon. The script is
