@@ -103,3 +103,13 @@ test("Generator analytics coverage and CSP reject unsafe regressions", async (co
         writeFileSync(join(fixture, "qr-code-generator/index.html"), generator);
     }
 });
+
+test("website routes must be present, unique, and match their page", () => {
+    for (const replacement of ["", 'data-analytics-route="generator"', 'data-analytics-route="home" data-analytics-route="home"']) {
+        writeFileSync(join(fixture, "index.html"), homepage.replace('data-analytics-route="home"', replacement));
+        const result = spawnSync(process.execPath, [validator], { encoding: "utf8" });
+        assert.equal(result.status, 1);
+        assert.match(result.stderr, /exactly one matching analytics route/u);
+    }
+    writeFileSync(join(fixture, "index.html"), homepage);
+});

@@ -71,6 +71,7 @@ for (const htmlFile of htmlFiles) {
     validateHtmlAnchors(htmlFile, html);
     validateCloudflareBeacon(htmlFile, html);
     validateAnalyticsBootstrap(htmlFile, html);
+    validateAnalyticsRoute(htmlFile, html);
 }
 
 validateAnalyticsBundle();
@@ -421,5 +422,19 @@ function validateAnalyticsBundle() {
     }
     if (analyticsConfig.enabled !== false || analyticsConfig.environment !== "production" || analyticsConfig.token !== "") {
         errors.push("Production analytics must remain disabled until the production gates pass.");
+    }
+}
+
+function validateAnalyticsRoute(htmlFile, html) {
+    const routeByFile = {
+        "index.html": "home", "qr-code-generator/index.html": "generator",
+        "privacy/index.html": "privacy", "legal/index.html": "legal",
+        "Acknowledgements/index.html": "acknowledgements",
+        "changelog/index.html": "changelog", "helpcenter/index.html": "helpcenter",
+    };
+    const body = html.match(/<body\b[^>]*>/iu)?.[0] ?? "";
+    const routes = [...body.matchAll(/\sdata-analytics-route\s*=\s*["']([^"']*)["']/giu)];
+    if (routes.length !== 1 || routes[0][1] !== routeByFile[htmlFile]) {
+        errors.push(`${htmlFile} must declare exactly one matching analytics route.`);
     }
 }
