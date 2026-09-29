@@ -48,13 +48,9 @@ test("page descriptions and social metadata agree", () => {
     }
 });
 
-test("QR generator page preserves its product and privacy contract", () => {
+test("QR generator page preserves its product controls", () => {
     assert.match(generator, /<title>Free QR Code Generator - Customize &amp; Download \| QRSpell<\/title>/u);
     assert.match(generator, /<link rel="canonical" href="https:\/\/qrspell\.app\/qr-code-generator\/">/u);
-    assert.equal(
-        [...generator.matchAll(/QR codes are generated locally in your browser\./gu)].length,
-        1,
-    );
     assert.match(generator, /id="qr-content"/u);
     assert.match(generator, /id="module-shape"/u);
     assert.match(generator, /id="finder-shape"/u);

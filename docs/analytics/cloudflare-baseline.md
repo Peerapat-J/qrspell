@@ -34,7 +34,8 @@ deferred and independent of Generator setup, rendering, and export. A blocked
 script, blocked ingestion, timeout, or HTTP error may omit traffic measurements;
 it must not create a visible Generator error or disable a control. Users may block
 `static.cloudflareinsights.com` and `cloudflareinsights.com` normally; no proxy is
-added to bypass blockers. The website Privacy Policy now discloses the baseline.
+added to bypass blockers. Traffic measurement details are documented here; the
+public Privacy Policy covers the QRSpell macOS app.
 
 ## Edge analytics availability
 

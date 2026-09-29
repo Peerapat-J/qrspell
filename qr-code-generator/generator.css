@@ -826,13 +826,6 @@
     opacity: 0.45;
 }
 
-.generator-privacy {
-    margin: 16px 4px 0;
-    color: #64748b;
-    font-size: 13px;
-    text-align: center;
-}
-
 .generator-app-cta {
     display: flex;
     align-items: center;

@@ -74,8 +74,9 @@ blocked ingestion, timeout, HTTP 400/503, offline signal, DNT, and GPC.
 Copy uses a clipboard stub; browser downloads are initiated and denied by
 the test harness. Physical clipboard/disk and tracker-blocker QA remain manual.
 
-The complete content/image/referrer/error canary matrix after instrumentation
-and the production Privacy Policy remain #45 release gates.
+The complete content/image/referrer/error canary matrix after instrumentation,
+site-wide CSP, and the internal provider/data-handling record remain #45 release
+gates. The public Privacy Policy covers the macOS app.
 
 ## Manual checklist
 
