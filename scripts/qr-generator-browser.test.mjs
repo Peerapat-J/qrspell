@@ -1488,3 +1488,207 @@ test("privacy-safe PostHog foundation audits the real pinned SDK without product
         await cleanupTestResources({ client, browser, site });
     }
 });
+
+
+test("website events audit SDK envelopes and native navigation without production traffic", { timeout: 60_000 }, async context => {
+    let site;
+    let browser;
+    let client;
+    let mode = "allowed";
+    let requests = [];
+    let sdkLoads = 0;
+    let storeNavigations = 0;
+    const pending = new Set();
+    const interceptionErrors = [];
+    const runtimeErrors = [];
+    const unexpected = [];
+    const storeUrl = "https://apps.apple.com/app/id6771453521";
+    const token = "phc_QRSpellWebsiteTestOnly";
+    const canaries = ["QUERY43_SECRET", "HASH43_SECRET", "REFERRER43_SECRET", "DOM43_SECRET", "person43@example.com"];
+    const events = () => requests.flatMap(request => {
+        assert.ok(request.postData, "Audit the complete real SDK request body");
+        const envelope = JSON.parse(request.postData);
+        assert.deepEqual(Object.keys(envelope).sort(), ["api_key", "batch", "sent_at"]);
+        assert.equal(envelope.api_key, token);
+        return envelope.batch;
+    });
+    const audit = () => {
+        for (const event of events()) {
+            assert.ok(["site_page_viewed", "app_store_clicked"].includes(event.event));
+            assert.deepEqual(Object.keys(event.properties).sort(), [
+                "analytics_schema_version", "environment", "token", "distinct_id", "$lib", "$lib_version", "$process_person_profile", "$geoip_disable",
+                event.event === "site_page_viewed" ? "route" : "source",
+            ].sort());
+            assert.equal(event.properties.environment, "sandbox");
+            assert.equal(event.properties.distinct_id, "$posthog_cookieless");
+            assert.equal(event.properties.$process_person_profile, false);
+            assert.equal(event.properties.$geoip_disable, true);
+        }
+        for (const canary of canaries) assert.ok(!JSON.stringify(requests).includes(canary), `Provider traffic leaked ${canary}`);
+        assert.deepEqual(runtimeErrors, [], "No unhandled analytics error may reach the page");
+        assert.deepEqual(unexpected, [], "All unexpected external requests are blocked");
+    };
+    const load = async (path = "/") => {
+        requests = [];
+        sdkLoads = 0;
+        await client.send("Page.navigate", {
+            url: `${site.origin}${path}?mode=${encodeURIComponent(mode)}&secret=${canaries[0]}&utm_source=${encodeURIComponent(canaries[4])}&utm_campaign=${canaries[0]}#${canaries[1]}`,
+            referrer: `${site.origin}/private?secret=${canaries[2]}`,
+        });
+        await waitFor(client, "document.readyState === 'complete' && Boolean(document.body?.getAttribute('data-analytics-route'))");
+        return client.evaluate(`(async () => {
+            try { return await (async () => (await import('/assets/site-analytics.mjs')).startSiteAnalytics())(); }
+            catch { return false; }
+        })()`);
+    };
+    const activateCta = async (source, keyboard) => {
+        // Keep the production link markup intact except target: this fixture uses
+        // same-tab navigation so its App Store document can be fully intercepted.
+        const bounds = await client.evaluate(`(async () => {
+            const link = document.querySelector('[data-analytics-source="${source}"]');
+            const original = { href: link.getAttribute('href'), target: link.target, rel: link.rel };
+            link.target = '_self';
+            document.documentElement.style.scrollBehavior = 'auto';
+            link.scrollIntoView({ block: 'center', behavior: 'instant' });
+            link.focus();
+            await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+            const rect = link.getBoundingClientRect();
+            return { original, x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
+        })()`);
+        assert.deepEqual(bounds.original, { href: storeUrl, target: "_blank", rel: "noopener noreferrer" });
+        const before = storeNavigations;
+        if (keyboard) await pressKey(client, "Enter");
+        else {
+            await client.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: bounds.x, y: bounds.y });
+            await client.send("Input.dispatchMouseEvent", { type: "mousePressed", x: bounds.x, y: bounds.y, button: "left", clickCount: 1 });
+            await client.send("Input.dispatchMouseEvent", { type: "mouseReleased", x: bounds.x, y: bounds.y, button: "left", clickCount: 1 });
+        }
+        await waitFor(client, "document.title === 'Intercepted App Store' && document.readyState === 'complete'");
+        assert.equal(storeNavigations, before + 1, "Native activation must navigate even when analytics fails");
+    };
+
+    try {
+        site = await startStaticServer();
+        browser = await startBrowser();
+        const target = await createTarget(browser.debugOrigin, "about:blank");
+        client = await CdpClient.connect(target.webSocketDebuggerUrl);
+        await client.send("Page.enable");
+        await client.send("Runtime.enable");
+        await client.send("Network.enable", { maxPostDataSize: 2_000_000 });
+        await client.send("Network.setCacheDisabled", { cacheDisabled: true });
+        await client.send("Network.setUserAgentOverride", { userAgent: (await client.evaluate("navigator.userAgent")).replace("HeadlessChrome", "Chrome") });
+        client.on("Runtime.exceptionThrown", event => runtimeErrors.push(event));
+        client.on("Network.requestWillBeSent", ({ request }) => {
+            if (new URL(request.url).origin === "https://eu.i.posthog.com" && request.method === "POST") requests.push({ ...request });
+        });
+        await client.send("Page.addScriptToEvaluateOnNewDocument", { source: `
+            // Only this intercepted loopback sandbox simulates a human browser.
+            Object.defineProperty(navigator, 'webdriver', { value: false });
+            const mode = new URL(location.href).searchParams.get('mode');
+            if (mode === 'GPC') Object.defineProperty(navigator, 'globalPrivacyControl', { value: true });
+            if (mode === 'DNT') Object.defineProperty(navigator, 'doNotTrack', { value: '1' });
+            if (mode === 'offline') Object.defineProperty(navigator, 'onLine', { value: false });
+        ` });
+        client.on("Fetch.requestPaused", ({ requestId, request }) => {
+            const operation = (async () => {
+                const url = new URL(request.url);
+                const fulfill = (body, contentType = "text/javascript") => client.send("Fetch.fulfillRequest", {
+                    requestId, responseCode: 200,
+                    responseHeaders: [{ name: "Content-Type", value: contentType }],
+                    body: Buffer.from(body).toString("base64"),
+                });
+                if (url.origin === site.origin) {
+                    if (url.pathname.endsWith("/assets/analytics-config.mjs") && mode !== "production disabled") {
+                        return fulfill(`export const analyticsConfig = Object.freeze({ enabled: true, environment: 'sandbox', token: '${token}' });`);
+                    }
+                    if (url.pathname.endsWith("/vendor/posthog/posthog.mjs")) sdkLoads++;
+                    const blocked = mode === "SDK blocked" && url.pathname.endsWith("/vendor/posthog/posthog.mjs")
+                        || mode === "module blocked" && url.pathname.endsWith("/assets/site-analytics.mjs")
+                        || mode === "wrapper blocked" && url.pathname.endsWith("/assets/analytics.mjs");
+                    if (blocked) return client.send("Fetch.failRequest", { requestId, errorReason: "BlockedByClient" });
+                    return client.send("Fetch.continueRequest", { requestId });
+                }
+                if (request.url === storeUrl && request.resourceType !== "XHR") {
+                    storeNavigations++;
+                    return fulfill('<!doctype html><title>Intercepted App Store</title><link rel="icon" href="data:,"><p>Navigation completed.</p>', "text/html");
+                }
+                if (url.origin === "https://eu.i.posthog.com") {
+                    if (request.method === "POST" && ["endpoint blocked", "timeout"].includes(mode)) {
+                        return client.send("Fetch.failRequest", { requestId, errorReason: mode === "timeout" ? "TimedOut" : "BlockedByClient" });
+                    }
+                    return client.send("Fetch.fulfillRequest", {
+                        requestId, responseCode: request.method === "OPTIONS" ? 200 : mode === "HTTP 4xx" ? 400 : mode === "HTTP 5xx" ? 503 : 200,
+                        responseHeaders: [
+                            { name: "Content-Type", value: "application/json" },
+                            { name: "Access-Control-Allow-Origin", value: site.origin },
+                            { name: "Access-Control-Allow-Methods", value: "POST, OPTIONS" },
+                            { name: "Access-Control-Allow-Headers", value: "content-type" },
+                        ],
+                        body: Buffer.from('{"status":1}').toString("base64"),
+                    });
+                }
+                if (!["https://static.cloudflareinsights.com", "https://cloudflareinsights.com"].includes(url.origin)) unexpected.push(request.url);
+                return client.send("Fetch.failRequest", { requestId, errorReason: "BlockedByClient" });
+            })().catch(error => {
+                // Native navigation/instant legal redirect can cancel a paused request.
+                if (error.message !== "Invalid InterceptionId.") interceptionErrors.push(error);
+            }).finally(() => pending.delete(operation));
+            pending.add(operation);
+        });
+        await client.send("Fetch.enable", { patterns: [{ urlPattern: "*" }] });
+
+        await context.test("each public route emits one view without URL or DOM data", async () => {
+            for (const [path, route] of [["/", "home"], ["/qr-code-generator/", "generator"], ["/changelog/", "changelog"], ["/privacy/", "privacy"], ["/helpcenter/", "helpcenter"], ["/Acknowledgements/", "acknowledgements"]]) {
+                assert.equal(await load(path), true);
+                await waitForRequest(() => requests.length === 1);
+                await client.evaluate(`document.body.append(document.createTextNode(${JSON.stringify(canaries[3])})); location.hash = 'changed';`);
+                assert.equal(await client.evaluate(`(async () => (await import('/assets/site-analytics.mjs')).startSiteAnalytics())()`), true);
+                assert.deepEqual(events().map(event => [event.event, event.properties.route]), [["site_page_viewed", route]]);
+                assert.deepEqual(await client.evaluate("({ cookies: document.cookie, local: Object.keys(localStorage), session: Object.keys(sessionStorage) })"), { cookies: "", local: [], session: [] });
+                audit();
+            }
+        });
+
+        await context.test("legal redirect stays immediate and reports its destination document", async () => {
+            await load("/legal/");
+            await waitFor(client, "document.body?.getAttribute('data-analytics-route') === 'acknowledgements'");
+            await client.evaluate(`(async () => (await import('/assets/site-analytics.mjs')).startSiteAnalytics())()`);
+            await waitForRequest(() => events().some(event => event.properties.route === "acknowledgements"));
+            assert.equal(events().filter(event => event.properties.route === "acknowledgements").length, 1);
+            assert.ok(events().filter(event => event.properties.route === "legal").length <= 1);
+            audit();
+        });
+
+        await context.test("pointer and keyboard activation keep all CTA sources attributable", async () => {
+            for (const [source, path] of [["header", "/"], ["homepage_hero", "/"], ["generator_cta", "/qr-code-generator/"], ["footer", "/"]]) {
+                for (const keyboard of [false, true]) {
+                    assert.equal(await load(path), true);
+                    await waitForRequest(() => requests.length === 1);
+                    await activateCta(source, keyboard);
+                    await waitForRequest(() => events().some(event => event.event === "app_store_clicked"));
+                    assert.deepEqual(events().map(event => event.event), ["site_page_viewed", "app_store_clicked"]);
+                    assert.equal(events()[1].properties.source, source);
+                    audit();
+                }
+            }
+        });
+
+        for (mode of ["production disabled", "module blocked", "wrapper blocked", "SDK blocked", "endpoint blocked", "timeout", "HTTP 4xx", "HTTP 5xx", "offline", "DNT", "GPC"]) {
+            await context.test(`navigation survives ${mode}`, async () => {
+                const canInitialize = ["endpoint blocked", "timeout", "HTTP 4xx", "HTTP 5xx"].includes(mode);
+                assert.equal(await load(), canInitialize);
+                if (canInitialize) await waitForRequest(() => requests.length >= 1);
+                else assert.equal(requests.length, 0);
+                if (["production disabled", "offline", "DNT", "GPC"].includes(mode)) assert.equal(sdkLoads, 0);
+                await activateCta("header", true);
+                if (!canInitialize) assert.equal(requests.length, 0);
+                audit();
+            });
+        }
+        await Promise.all([...pending]);
+        assert.deepEqual(interceptionErrors, []);
+        context.diagnostic("Real SDK, fake sandbox config/token, fully intercepted network. Native same-tab CTA fixture covers keyboard/pointer; original href, target and rel are checked before fixture activation.");
+    } finally {
+        await cleanupTestResources({ client, browser, site });
+    }
+});

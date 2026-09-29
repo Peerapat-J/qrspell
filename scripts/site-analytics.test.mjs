@@ -122,7 +122,7 @@ test("campaign parser drops duplicate, private, malformed, and oversized values"
     for (const search of [
         "?utm_source=github&utm_source=github", "?utm_source=github&utm_source=SECRET",
         "?utm_source=person%40example.com", "?utm_source=https%3A%2F%2Fsecret.example",
-        "?utm_source=github%00", "?utm_source=github%", "?utm_source=%E0%A4%A",
+        "?utm_source=github%00", "?utm_source=github%0A", "?utm_source=%09github", "?utm_source=github%", "?utm_source=%E0%A4%A",
         "?utm_source=constructor", "?utm_source=github%2540example.com",
         "?utm_source=" + " ".repeat(65) + "github", "?utm_source=github&secret=" + "x".repeat(2048),
         null, { toString: () => "?utm_source=github" },

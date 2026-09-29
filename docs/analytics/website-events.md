@@ -60,3 +60,23 @@ a fake sandbox token and interception of all external requests.
 Manual tracker-blocker and real-provider delivery checks remain separate from
 automated browser interception. Production activation remains gated by #45
 and architecture-v1.md.
+
+## Verification record — 2026-09-29
+
+- All 155 tests passed with no skips (`node --test scripts/*.test.mjs`), including
+  the existing QR Generator suite and the new website SDK-envelope/navigation
+  suite. Syntax, generated-schema, contract, static-site, and diff checks passed.
+- Browser tests intercepted the real pinned SDK with a fake sandbox token and
+  config served only by the test fixture. Every external request was intercepted;
+  no production provider data was sent. Local storage and cookies stayed empty.
+- Native pointer/keyboard navigation used a same-tab App Store fixture so the
+  destination was fully intercepted. The original href, `_blank` target, and
+  `noopener noreferrer` were checked before the fixture changed target.
+- Unit tests also cover middle-button activation and rejecting control
+  characters in campaign values, including leading/trailing tabs and newlines.
+- Manual checks remain: original new-tab/middle-click behavior, VoiceOver,
+  a real tracker blocker, and delivery/raw-event inspection in an approved
+  non-production provider project. Interception proves outgoing shape and
+  failure behavior, not real provider delivery.
+- No real UTM values are registered. Production remains disabled and tokenless;
+  #45 and the architecture gates still govern activation.

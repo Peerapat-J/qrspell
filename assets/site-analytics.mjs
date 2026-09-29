@@ -65,6 +65,7 @@ export function readCampaignAttribution(search, definition = analyticsSchema.eve
             if (!Array.isArray(rule.enum)) continue;
             const values = parameters.getAll(key);
             if (values.length !== 1 || values[0].length > policy.max_value_length) continue;
+            if (/[\u0000-\u001f\u007f]/u.test(values[0])) continue;
             const value = values[0].trim().toLowerCase();
             if (/^[a-z0-9][a-z0-9_-]{0,63}$/u.test(value) && rule.enum.includes(value)) result[key] = value;
         }
