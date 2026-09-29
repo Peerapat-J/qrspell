@@ -54,7 +54,7 @@
         "export_size": { "enum": [256, 512, 1024] },
         "reliability": { "enum": ["M", "Q", "H"] },
         "center_type": { "enum": ["none", "text", "image"] },
-        "warning_count": { "enum": [0, 1, 2, 3] }
+        "warning_count": { "enum": [0, 1, 2, 3, 4] }
       }
     },
     "qr_exported": {

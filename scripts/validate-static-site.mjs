@@ -26,6 +26,8 @@ const requiredFiles = [
     "qr-code-generator/generator.css",
     "qr-code-generator/generator.mjs",
     "qr-code-generator/generator-core.mjs",
+    "qr-code-generator/generator-analytics.mjs",
+    "qr-code-generator/generator-event-properties.mjs",
     "assets/vendor/qr-code-styling/qr-code-styling.js",
     "assets/vendor/qr-code-styling/LICENSE",
     "assets/vendor/qr-code-styling/README.md",
