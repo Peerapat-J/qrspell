@@ -29,11 +29,13 @@ const html = String.raw`<!doctype html>
   <button id="initialize">Initialize sandbox</button>
   <button id="journey" disabled>Send safe journey</button>
   <button id="download" disabled>Send download export</button>
+  <button id="warnings" disabled>Send warning categories</button>
   <pre id="status">Not initialized.</pre>
   <script>
     const status = document.querySelector('#status');
     const journey = document.querySelector('#journey');
     const download = document.querySelector('#download');
+    const warnings = document.querySelector('#warnings');
     const contract = ${browserContract};
     const base = Object.freeze({ analytics_schema_version: 2, environment: 'sandbox' });
     const settings = Object.freeze({ module_shape: 'square', finder_shape: 'rounded', export_size: 512, reliability: 'Q', center_type: 'none' });
@@ -191,6 +193,7 @@ const html = String.raw`<!doctype html>
       document.querySelector('#initialize').disabled = true;
       journey.disabled = false;
       download.disabled = false;
+      warnings.disabled = false;
       status.textContent = 'Privacy revision 3 initialized. No event has been sent.';
     });
 
@@ -204,6 +207,14 @@ const html = String.raw`<!doctype html>
 
     download.addEventListener('click', () => {
       safeCapture('qr_exported', { ...base, ...settings, method: 'download' });
+    });
+
+    warnings.addEventListener('click', () => {
+      safeCapture('qr_generation_completed', {
+        ...base, ...settings, outcome: 'decode_failed', warning_count: 4,
+        warning_inverted_modules: true, warning_low_contrast: true,
+        warning_dense_content: true, warning_weak_center_reliability: true
+      });
     });
   </script>
 </body>
