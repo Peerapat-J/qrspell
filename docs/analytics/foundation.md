@@ -4,8 +4,9 @@ Production tracking is disabled in `assets/analytics-config.mjs`, with no
 production token. The static-site validator enforces that gate. The foundation
 itself adds no event call sites. Website instrumentation is
 documented in [website-events.md](website-events.md) (#43); Generator action
-events remain #44. #45 and the architecture-v1 production gates must pass before
-changing the production configuration and its validation gate.
+events are documented in [generator-events.md](generator-events.md) (#44). #45 and
+the architecture-v1 production gates must pass before changing the production
+configuration and its validation gate.
 
 ## API
 
