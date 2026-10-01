@@ -174,9 +174,13 @@ the current approved schema.
 - Product-event retention: **12 months maximum**. The selected free PostHog
   plan advertises one-year data retention; verify the project retention window
   before production enablement and after any plan change.
-- Sandbox events: keep only for the #40 evidence period and remove them by
-  deleting/replacing the non-production project before production rollout, or
-  use a separate production project.
+- Project sharing decision (2026-10-02): the repository owner selected the
+  existing EU project for sandbox and production. Safe sandbox events remain
+  subject to the same 12-month maximum retention. Exclude them from every
+  production insight and funnel step with `environment = production`, the
+  deployed schema version and a date range starting at the production release.
+  Environment labels separate queries; settings, retention and usage remain
+  shared. No project or historical event deletion is part of this rollout.
 - Configuration review: every 90 days and whenever the provider plan changes.
 - Provider exit: stop capture first, export only aggregate documentation that
   is still needed, then delete the PostHog project/account data.
@@ -256,6 +260,9 @@ open for product behavior.
 
 ## Validation record
 
-Complete [`sandbox-validation.md`](sandbox-validation.md) against the EU
-non-production project. Until every required row is marked Pass with dated
-evidence, production tracking remains disabled and #40 is not complete.
+[`sandbox-validation.md`](sandbox-validation.md) records the historical v1
+check. Complete [`schema-v2-validation.md`](schema-v2-validation.md) using safe
+`environment = sandbox` events in the selected EU project. Until the required
+pre-release checks pass with dated evidence, production tracking remains
+disabled. Record production delivery and dashboard checks after the reviewed
+release as described in [`production-rollout.md`](production-rollout.md).

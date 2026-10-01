@@ -1,9 +1,11 @@
 # Issue #46: product analytics dashboard
 
 This is the reviewable definition of the production dashboard. Create the saved
-insights in the PostHog EU production project after that project exists and the
-production gates in [architecture-v1.md](architecture-v1.md) pass. The sandbox
-project is for delivery and query checks, not production reporting.
+insights in the existing PostHog EU project once the production gates in
+[architecture-v1.md](architecture-v1.md) pass. The repository owner selected a
+single project for local validation and production on 2026-10-02. Exclude local
+sandbox events from production reporting with the filters below. Project
+settings, retention and usage allowance remain shared.
 
 ## Shared settings
 

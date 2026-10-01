@@ -88,8 +88,9 @@ Policy covers the macOS app.
 
 
 For manual non-production validation on localhost, initialize an explicit instance
-in DevTools using the non-production project's public `phc_` token (never a
-personal API key):
+in DevTools using the selected EU project's public `phc_` token (never a
+personal API key). The shared-project rollout uses `environment = sandbox` for
+local tests and excludes those events from production insights:
 
 ```js
 const { createAnalytics } = await import("/assets/analytics.mjs");
@@ -106,9 +107,10 @@ sandbox.disableAnalytics();
 1. Serve the checkout on localhost and open Generator. In Network, confirm
    production boot loads no PostHog SDK or ingestion request. Generate a QR,
    verify it, copy/paste its PNG, download/open its PNG, and reset.
-2. Use a non-production EU project only for an explicit local sandbox instance
-   through the API above. Confirm no event is sent merely by initialization;
-   send approved test events and inspect their complete requests and raw events.
+2. Use the selected EU project only through an explicit local sandbox instance
+   for this test; the API above sends `environment = sandbox`. Confirm no event
+   is sent merely by initialization; send approved test events and inspect their
+   complete requests and raw events.
    Check the cookieless marker, no person processing, no GeoIP enrichment,
    and empty local-origin analytics cookie/localStorage/sessionStorage.
 3. Block the SDK or EU ingestion host in DevTools, then repeat Generator
