@@ -1,13 +1,17 @@
 # Issue #46: production analytics rollout and review
 
-This runbook records the work that remains after the local implementation.
+This runbook records the approved production rollout and its remaining follow-up.
+Release and dashboard evidence was recorded on 2026-10-06; see the
+[dated production record](production-validation-2026-10-06.md).
 On 2026-10-02, the repository owner selected the existing PostHog EU project
 for both local validation and production. No additional project or plan upgrade
 is required by this rollout. On 2026-10-05 the owner accepted the Free-plan
 retention and processing boundaries and authorized production activation.
-`assets/analytics-config.mjs` now enables the existing EU public token on the
-feature branch; the validator pins that reviewed project. Live deployment and
-post-release checks remain separate from local configuration approval.
+`assets/analytics-config.mjs` enables the existing EU public token in the release
+merged to `main` through PR #56 on 2026-10-05. The validator pins that reviewed
+project. GitHub Pages deployment succeeded and production schema-v2 events were
+observed on 2026-10-06. Local approval, deployment and observed delivery are
+separate evidence items below.
 Do not put a Personal API key or Project secret key in this repository.
 
 ## Release sequence
@@ -22,13 +26,12 @@ PNG and normal/blocked/tracker-blocker journeys passed on 2026-10-05. Keep this
 manual evidence separate from automated results and implementation status.
 
 The project/provider review, owner acceptance and real Generator
-clipboard/download/blocker checks are recorded. The release config and
-validator are prepared in section 3; do not ask the owner to repeat these checks.
-Production event inspection and dashboard
-verification in sections 4–5 require the release to be deployed; they are
-post-deployment checks, not additional prerequisites for preparing that change.
-The dated review follows the observation period. Issue #46 stays open until
-its dashboard and rollout evidence are complete.
+clipboard/download/blocker checks are recorded; do not ask the owner to repeat
+these checks. The release in section 3 is deployed. The production dashboard
+and its 17 saved insights were verified on 2026-10-06, as recorded in sections
+4–5. The snapshot is a small canary, not representative conversion data or a
+complete audit of every event/outcome. A dated post-launch review task has not
+yet been created. This documentation update does not close Issue #46.
 
 ## 1. Review the existing project
 
@@ -85,10 +88,12 @@ Record the browser/version, time, test journey, request/body evidence, raw-event
 evidence and result. Manual clipboard paste, opened download and a real tracker
 blocker are separate checks from the automated suite.
 
-## 3. Prepare the release change
+## 3. Release and deployment
 
-The owner authorized activation on 2026-10-05. The local activation change is
-ready for normal review and deployment; production receipt is not yet proven:
+The owner authorized activation on 2026-10-05. PR #55 merged activation and
+review fixes into `dev`; [PR #56](https://github.com/Peerapat-J/qrspell/pull/56)
+merged `dev` into `main` at 2026-10-05 23:32:49 (`Asia/Bangkok`). Production
+receipt was observed on 2026-10-06:
 
 - [x] Set `enabled: true` and the existing project's public `phc_` token in
       `assets/analytics-config.mjs`; keep `environment: "production"`.
@@ -106,43 +111,60 @@ ready for normal review and deployment; production receipt is not yet proven:
       Commands: `node scripts/generate-analytics-schema.mjs --check`,
       `node --test scripts/*.test.mjs`, `node scripts/validate-static-site.mjs`
       and `git diff --check`. Record automated and manual results separately.
-- [ ] Deploy the reviewed release through the normal repository workflow.
-      Record commit, release date/time (`Asia/Bangkok`) and schema version 2.
+- [x] Deploy the reviewed release through the normal repository workflow.
+      Commit `9b56f728dcb9c7b99b843ff7ae4afd17e117f5fe`; GitHub Pages reported
+      `built` at **2026-10-05 23:33:22 (`Asia/Bangkok`)**, schema version **2**.
+      [Pages run](https://github.com/Peerapat-J/qrspell/actions/runs/37341670256)
+      and [main CI](https://github.com/Peerapat-J/qrspell/actions/runs/37341673408)
+      succeeded. Deployment status was rechecked on 2026-10-06.
 
 ## 4. Create and verify the production dashboard
 
-Follow [dashboard-spec.md](dashboard-spec.md). Save the four sequential funnels,
-export breakdowns, settled outcome/failure views, warning rate and four warning
-category views. Apply `environment = production` and
-`analytics_schema_version = 2` to every insight or step. Add a visible text
-card with the coverage and identity limitations, and annotate the release and
-schema-change dates. Link delivery diagnostics only if the provider supplies a
-reliable one; otherwise mark the view unavailable.
+The [QRSpell production dashboard](https://eu.posthog.com/project/286136/dashboard/999543)
+contains four sequential funnels, six export breakdowns and seven settled-quality
+views. All 17 saved insights rendered without loading/error headings after the
+2026-10-06 refresh. Their links, query checks and observed values are in the
+[dated production record](production-validation-2026-10-06.md).
 
-Record the dashboard and saved-insight URLs. Use a fresh normal browser to run
-one controlled journey: open Generator, enter safe test content, wait for
-verification, Copy, initiate Download and click an App Store link. Check that
-the expected events arrive in the correct order and that the saved funnels
-include the journey. Two export events in one journey do not imply two people
-in the activation funnel. Do not mix Cloudflare counts into these rates.
+Every insight and funnel step filters `environment = production` and
+`analytics_schema_version = 2`, starting at the deployment timestamp with a
+moving end. Funnels use sequential ordering, unique users and a 30-minute
+window; internal/test exclusion is enabled. Dashboard descriptions and a saved
+text card disclose coverage, identity and event-meaning limitations. The header
+notes are readable; the text card remains narrow and scrollable. Delivery
+coverage diagnostics are unavailable. Cloudflare counts are not included in
+PostHog conversion rates.
+
+The canary showed acquisition and activation completing for one observed
+identity, three export actions and 24 settled outcomes. App Store funnels had
+zero clicks. This verifies the saved zero-result views, not a completed App Store
+click journey. No synthetic production events or repeat owner QA were requested.
 
 ## 5. Production canary and post-launch review
 
-- [ ] Activity filtered to `environment = production`, schema version 2 and
-      the release date onward shows only the seven approved event names:
-      `site_page_viewed`, `app_store_clicked`, `generator_viewed`,
-      `generator_started`, `qr_generation_completed`, `qr_exported`,
-      `generator_reset`.
-- [ ] Sample each event and each quality outcome; compare event properties with
-      `event-schema-v2.json`, including provider-added fields. All business
-      values are in closed low-cardinality enums or booleans.
-- [ ] Production insights exclude `environment = sandbox`, missing or older
-      schema versions and pre-release test traffic. Check each funnel step's
-      filters; sandbox events may remain in the shared project's Activity.
-- [ ] DNT/GPC and a real tracker blocker suppress product events while
-      navigation, Verify, Copy, Download and Reset still work.
-- [ ] Dashboard descriptions disclose blocked/opted-out traffic, daily
-      cookieless identity rotation, quality-event deduplication and export/
+- [x] Owner-supplied Activity evidence on 2026-10-06 shows production/schema-v2
+      Generator quality and export events. The saved release-filtered queries
+      reconcile the observed counts; see the dated production record. The
+      schema allows only `site_page_viewed`, `app_store_clicked`,
+      `generator_viewed`, `generator_started`, `qr_generation_completed`,
+      `qr_exported` and `generator_reset`. This does not assert that all seven
+      names were observed in production.
+- [ ] Complete representative production Raw sampling of event types and
+      quality outcomes as they become available, including provider-added
+      fields. Existing evidence covers sandbox Raw samples and the production
+      canary snapshot; it does not establish a full production Raw audit or
+      receipt of every outcome. Compare with `event-schema-v2.json` and retain
+      closed low-cardinality enums/booleans; do not generate private test content.
+- [x] Saved production insights and each funnel step exclude sandbox, missing/
+      older schemas and pre-release traffic. The actual saved query definitions
+      and moving date ranges were read back on 2026-10-06. Sandbox events remain
+      in the shared project and are excluded from production queries.
+- [x] Automated schema-v2 privacy/failure checks passed; the owner separately
+      reported real clipboard paste, opened PNG and normal/blocked/tracker-blocker
+      journeys working on 2026-10-05. Automated DNT/GPC checks and manual blocker
+      evidence are distinct; this does not claim a manual production DNT/GPC audit.
+- [x] Saved dashboard/funnel descriptions disclose blocked/opted-out traffic,
+      daily cookieless identity rotation, quality-event deduplication and export/
       App Store-click meaning.
 - [ ] Schedule a dated review after an agreed observation period. At that
       review, assess event volume/noise, unused events/properties, blocker
@@ -158,7 +180,7 @@ in the activation funnel. Do not mix Cloudflare counts into these rates.
 | Project settings and DPA review | Asia/Bangkok and cookieless enabled shown on 2026-10-02; Web vitals autocapture off shown and client IP discard confirmed on 2026-10-05; Free plan confirmed by owner; adapter capture settings and provider documents reviewed; owner accepted the provider retention/processing boundaries and revised the internal maximum-retention policy on 2026-10-05; no signed DPA is asserted; see [dated review](provider-review-2026-10-05.md) |
 | Schema-v2 sandbox provider check | Both quality cases received; export, Generator view and page view Raw records inspected on 2026-10-02; verified zero-warning Properties and v2 export method counts inspected on 2026-10-05; remaining checks in [schema-v2-validation.md](schema-v2-validation.md) |
 | #45 implementation and manual effects | Issue closed and PR #54 merged; automated v2 SDK/network/storage/failure checks pass (29 tests, 2026-10-05); owner reported real clipboard, opened PNG and normal/blocked/tracker-blocker journeys passed on 2026-10-05 |
-| Release commit and date/time | Local activation commit prepared on 2026-10-05 (Asia/Bangkok); deployed commit and live release time pending deployment |
-| Dashboard and insight URLs | Pending |
-| Production raw-event and canary results | Pending |
-| Dated post-launch review task | Pending |
+| Release commit and date/time | [PR #56](https://github.com/Peerapat-J/qrspell/pull/56), commit `9b56f728dcb9c7b99b843ff7ae4afd17e117f5fe`; Pages built 2026-10-05 23:33:22 Asia/Bangkok; schema 2; deployment and main CI success rechecked 2026-10-06 |
+| Dashboard and insight URLs | [QRSpell production](https://eu.posthog.com/project/286136/dashboard/999543); all 17 canonical insight links and saved-query checks in the [dated production record](production-validation-2026-10-06.md) |
+| Production raw-event and canary results | Production/schema-v2 Activity screenshot supplied 2026-10-06; saved charts reconciled 3 exports and 24 settled outcomes; acquisition/activation 1 completing identity each; App Store clicks 0; complete production Raw sampling remains unverified; see the [dated record](production-validation-2026-10-06.md) |
+| Dated post-launch review task | Not yet created; no review date or scheduled task is asserted by this record |
