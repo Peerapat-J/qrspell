@@ -6,6 +6,8 @@ import { tmpdir } from "node:os";
 import { dirname, extname, resolve, sep } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
+import { analyticsSchema } from "../assets/analytics-schema.mjs";
+import { auditAnalyticsRequests, readAnalyticsBody, cloudflareTestSource, cloudflareBeaconUrl, cloudflareIngestUrl } from "./analytics-network-audit.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const mimeTypes = new Map([
@@ -26,11 +28,14 @@ test("QR generator controls work together in a real browser", { timeout: 30_000 
     try {
         site = await startStaticServer();
         browser = await startBrowser();
-        const target = await createTarget(browser.debugOrigin, `${site.origin}/qr-code-generator/`);
+        const target = await createTarget(browser.debugOrigin, "about:blank");
         client = await CdpClient.connect(target.webSocketDebuggerUrl);
         await client.send("Page.enable");
         await client.send("Runtime.enable");
-        await waitFor(client, `document.readyState === "complete" && Boolean(document.querySelector("#module-shape-trigger"))`);
+        await client.send("Browser.setDownloadBehavior", { behavior: "deny" });
+        await client.send("Network.enable");
+        await client.send("Network.setBlockedURLs", { urls: ["*cloudflareinsights.com/*"] });
+        await navigate(client, `${site.origin}/qr-code-generator/`);
 
         await context.test("keyboard dropdown selection and Reset restore defaults", async () => {
             await client.evaluate(`document.querySelector("#module-shape-trigger").focus()`);
@@ -832,6 +837,218 @@ test("QR generator controls work together in a real browser", { timeout: 30_000 
     }
 });
 
+test("optional Cloudflare baseline preserves Generator behavior and exact CSP", { timeout: 60_000 }, async (context) => {
+    let site;
+    let browser;
+    let client;
+    const beaconUrl = "https://static.cloudflareinsights.com/beacon.min.js";
+    const ingestUrl = "https://cloudflareinsights.com/cdn-cgi/rum";
+    const fixturePath = process.env.CLOUDFLARE_BEACON_FIXTURE;
+    // CI uses a controlled probe; a temporary provider snapshot enables the real network canary audit.
+    const beaconSource = cloudflareTestSource();
+    const canaries = ["QR41_SECRET_20260928", "C41XYZ", "FILE41_PRIVATE", "IMAGE41_PRIVATE", "QUERY41_PRIVATE", "HASH41_PRIVATE", "REFERRER41_PRIVATE"];
+    let mode;
+    let requests = [];
+    const interceptedBodies = new Map();
+    const interceptionErrors = [];
+    const pendingInterceptions = new Set();
+    try {
+        site = await startStaticServer();
+        browser = await startBrowser();
+        const target = await createTarget(browser.debugOrigin, "about:blank");
+        client = await CdpClient.connect(target.webSocketDebuggerUrl);
+        await client.send("Page.enable");
+        await client.send("Runtime.enable");
+        await client.send("Browser.setDownloadBehavior", { behavior: "deny" });
+        await client.send("Network.enable", { maxPostDataSize: 2_000_000 });
+        await client.send("Page.addScriptToEvaluateOnNewDocument", { source: `
+            window.__qrspellCspViolations = [];
+            Object.defineProperty(navigator, 'webdriver', { value: false });
+            document.addEventListener("securitypolicyviolation", event => window.__qrspellCspViolations.push({ directive: event.effectiveDirective, url: event.blockedURI }));
+        ` });
+        client.on("Network.requestWillBeSent", ({ requestId, request }) => {
+            if (new URL(request.url).hostname.endsWith("cloudflareinsights.com")) requests.push({ requestId, ...request, postData: request.postData ?? interceptedBodies.get(requestId) });
+        });
+        client.on("Fetch.requestPaused", ({ requestId, networkId, request }) => {
+            if (request.method === "POST" && request.postData) {
+                interceptedBodies.set(networkId, request.postData);
+                const captured = requests.find(item => item.requestId === networkId);
+                if (captured) captured.postData = request.postData;
+            }
+            const operation = (async () => {
+                const url = new URL(request.url);
+                if (url.pathname === '/assets/cloudflare-bootstrap.mjs' && url.origin === site.origin) {
+                    return client.send('Fetch.fulfillRequest', { requestId, responseCode: 200,
+                        responseHeaders: [{ name: 'Content-Type', value: 'text/javascript' }],
+                        body: Buffer.from(readFileSync(resolve(root, 'assets/cloudflare-bootstrap.mjs'), 'utf8').replace('origin !== "https://qrspell.app"', `origin !== ${JSON.stringify(site.origin)}`)).toString('base64'),
+                    });
+                }
+                if (url.origin === site.origin || url.protocol === "data:" || url.protocol === "blob:") {
+                    return client.send("Fetch.continueRequest", { requestId });
+                }
+                if (request.url === beaconUrl) {
+                    if (mode === "beacon blocked") return client.send("Fetch.failRequest", { requestId, errorReason: "BlockedByClient" });
+                    return client.send("Fetch.fulfillRequest", {
+                        requestId, responseCode: 200,
+                        responseHeaders: [{ name: "Content-Type", value: "text/javascript" }],
+                        body: Buffer.from(beaconSource).toString("base64"),
+                    });
+                }
+                if (request.url === ingestUrl) {
+                    if (mode === "ingestion blocked") return client.send("Fetch.failRequest", { requestId, errorReason: "BlockedByClient" });
+                    if (mode === "ingestion timeout" && request.method === "POST") return client.send("Fetch.failRequest", { requestId, errorReason: "TimedOut" });
+                    return client.send("Fetch.fulfillRequest", {
+                        requestId, responseCode: mode === "HTTP error" && request.method === "POST" ? 503 : 204,
+                        responseHeaders: [
+                            { name: "Access-Control-Allow-Origin", value: site.origin },
+                            { name: "Access-Control-Allow-Methods", value: "POST, OPTIONS" },
+                            { name: "Access-Control-Allow-Headers", value: "content-type" },
+                        ],
+                    });
+                }
+                // Every unexpected external request is blocked too; tests cannot emit production telemetry.
+                return client.send("Fetch.failRequest", { requestId, errorReason: "BlockedByClient" });
+            })().catch(error => { if (error.message !== "Invalid InterceptionId.") interceptionErrors.push(error); }).finally(() => pendingInterceptions.delete(operation));
+            pendingInterceptions.add(operation);
+        });
+        await client.send("Fetch.enable", { patterns: [{ urlPattern: "*" }] });
+
+        await context.test("all public routes permit only the baseline endpoints under CSP", async () => {
+            mode = "allowed";
+            for (const path of ["/", "/privacy/", "/changelog/", "/helpcenter/", "/Acknowledgements/", "/legal/"]) {
+                requests = [];
+                await client.send("Page.navigate", { url: `${site.origin}${path}?secret=${canaries[4]}#${canaries[5]}`, referrer: `${site.origin}/` });
+                const destination = path === "/legal/" ? "/Acknowledgements/" : path;
+                await waitFor(client, `document.readyState === 'complete' && location.pathname === ${JSON.stringify(destination)}`);
+                await waitForRequest(async () => {
+                    for (const request of requests.filter(request => request.method === "POST" && !request.postData)) {
+                        try { await readAnalyticsBody(client, request); }
+                        catch (error) { if (error.message !== "No resource with given id was found") throw error; }
+                    }
+                    return requests.some(request => request.method === "POST" && request.postData?.includes(site.origin + destination));
+                });
+                await Promise.all([...pendingInterceptions]);
+                assert.deepEqual(await client.evaluate("window.__qrspellCspViolations"), []);
+                await auditAnalyticsRequests(client, requests, canaries);
+            }
+        });
+
+        for (mode of ["allowed", "beacon blocked", "ingestion blocked", "ingestion timeout", "HTTP error"]) {
+            await context.test(mode, async () => {
+                requests = [];
+                await client.send("Page.navigate", {
+                    url: `${site.origin}/qr-code-generator/?case=${encodeURIComponent(mode)}&secret=${canaries[4]}#${canaries[5]}`,
+                    referrer: `${site.origin}/`,
+                });
+                await waitFor(client, `document.readyState === "complete" && Boolean(document.querySelector("#module-shape-trigger"))`);
+                assert.deepEqual(await client.evaluate("window.__qrspellCspViolations"), [], "CSP must permit the declared beacon and ingestion endpoint");
+                assert.equal(requests.filter(request => request.url === beaconUrl).length, 1);
+
+                if (mode === "allowed") {
+                    await client.evaluate(`Promise.all([
+                        fetch(${JSON.stringify(site.origin + "/forbidden-connection")}).catch(() => {}),
+                        fetch("https://cloudflareinsights.com/forbidden-connection").catch(() => {})
+                    ])`);
+                    const violations = await client.evaluate("window.__qrspellCspViolations");
+                    assert.equal(violations.length, 2);
+                    assert.ok(violations.every(violation => violation.directive === "connect-src"));
+                }
+
+                await client.evaluate(`(() => {
+                    const content = document.querySelector("#qr-content");
+                    content.value = ${JSON.stringify(canaries[0])};
+                    content.dispatchEvent(new Event("input", { bubbles: true }));
+                    const reliability = document.querySelector("#reliability");
+                    reliability.value = "H";
+                    reliability.dispatchEvent(new Event("change", { bubbles: true }));
+                    const centerType = document.querySelector("#center-type");
+                    centerType.value = "text";
+                    centerType.dispatchEvent(new Event("change", { bubbles: true }));
+                    const centerText = document.querySelector("#center-text");
+                    centerText.value = ${JSON.stringify(canaries[1])};
+                    centerText.dispatchEvent(new Event("input", { bubbles: true }));
+                })()`);
+                await waitFor(client, `document.querySelector("#verification-status").dataset.state === "verified"`);
+
+                await client.evaluate(`(async () => {
+                    const canvas = document.createElement("canvas");
+                    canvas.width = canvas.height = 64;
+                    const drawing = canvas.getContext("2d");
+                    drawing.fillStyle = "#ffffff";
+                    drawing.fillRect(0, 0, 64, 64);
+                    drawing.fillStyle = "#000000";
+                    drawing.fillRect(16, 16, 32, 32);
+                    const blob = await new Promise(resolve => canvas.toBlob(resolve, "image/png"));
+                    const transfer = new DataTransfer();
+                    transfer.items.add(new File([blob, ${JSON.stringify(canaries[3])}], ${JSON.stringify(canaries[2] + ".png")}, { type: "image/png" }));
+                    const centerType = document.querySelector("#center-type");
+                    centerType.value = "image";
+                    centerType.dispatchEvent(new Event("change", { bubbles: true }));
+                    const image = document.querySelector("#center-image");
+                    image.files = transfer.files;
+                    image.dispatchEvent(new Event("change", { bubbles: true }));
+                })()`);
+                await waitFor(client, `document.querySelector("#verification-status").dataset.state === "verified" && document.querySelector("#center-image-name").textContent === ${JSON.stringify(canaries[2] + ".png")} && Boolean(document.querySelector("#qr-preview svg image"))`);
+                await client.evaluate(`(() => {
+                    window.__qrspellAnalyticsTestCopied = false;
+                    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { write(items) {
+                        window.__qrspellAnalyticsTestCopied = items[0].types.includes("image/png");
+                        return Promise.resolve();
+                    } } });
+                    document.querySelector("#copy-qr").click();
+                })()`);
+                await waitFor(client, `window.__qrspellAnalyticsTestCopied && document.querySelector("#verification-status").textContent.includes("PNG copied")`);
+                await client.evaluate('document.querySelector("#download-qr").click()');
+                await waitFor(client, `document.querySelector("#verification-status").textContent.includes("PNG downloaded")`);
+                await client.evaluate('document.querySelector("#reset-generator").click()');
+                assert.deepEqual(await client.evaluate(`(() => ({ content: document.querySelector("#qr-content").value, state: document.querySelector("#verification-status").dataset.state }))()`), { content: "", state: "idle" });
+
+                if (mode !== "beacon blocked") {
+                    await waitForRequest(() => requests.some(request => request.url === ingestUrl && request.method === "POST"));
+                    await client.evaluate(`(() => {
+                        Object.defineProperty(document, "visibilityState", { configurable: true, value: "hidden" });
+                        document.dispatchEvent(new Event("visibilitychange"));
+                    })()`);
+                    await waitForRequest(() => requests.filter(request => request.url === ingestUrl && request.method === "POST").length >= 2);
+                } else {
+                    assert.equal(requests.filter(request => request.url === ingestUrl).length, 0);
+                }
+                await Promise.all([...pendingInterceptions]);
+                assert.deepEqual(interceptionErrors, []);
+                const envelopes = requests.filter(request => request.url === beaconUrl || request.url === ingestUrl);
+                const posts = envelopes.filter(request => request.method === "POST");
+                for (const request of posts) {
+                    if (!request.postData) {
+                        const result = await client.send("Network.getRequestPostData", { requestId: request.requestId });
+                        request.postData = result.postData;
+                    }
+                }
+                const serialized = JSON.stringify(envelopes);
+                for (const canary of canaries) assert.ok(!serialized.includes(canary), `Analytics leaked ${canary}`);
+                assert.doesNotMatch(serialized, /data:image|<svg|centerText|centerImage|moduleShape|finderShape|exportSize|reliability/u);
+                assert.ok(posts.every(request => request.postData), "Capture the complete analytics body, not just request URLs");
+                for (const request of posts) {
+                    const payload = JSON.parse(request.postData);
+                    assert.equal(payload.location, site.origin + "/qr-code-generator/");
+                    assert.equal(payload.siteToken, "e43189ed6f5c43d29472b9b18c73b226");
+                }
+            });
+        }
+        context.diagnostic(fixturePath ? "Audited the intercepted provider snapshot; no production ingestion." : "Used a controlled beacon probe; provider snapshot audit is optional.");
+    } finally {
+        await cleanupTestResources({ client, browser, site });
+    }
+});
+
+async function waitForRequest(condition, timeout = 7_000) {
+    const deadline = Date.now() + timeout;
+    while (Date.now() < deadline) {
+        if (await condition()) return;
+        await new Promise(resolve => setTimeout(resolve, 40));
+    }
+    throw new Error("Timed out waiting for intercepted analytics request.");
+}
+
 test("browser test cleanup handles partially initialized resources", async () => {
     const profile = mkdtempSync(`${tmpdir()}/qrspell-browser-cleanup-test-`);
     const cleanupEvents = [];
@@ -895,9 +1112,10 @@ async function waitFor(client, expression, timeout = 7_000) {
     throw new Error(`Timed out waiting for browser condition: ${expression}`);
 }
 
-async function startStaticServer() {
+async function startStaticServer({ respond } = {}) {
     const server = createServer((request, response) => {
         try {
+            if (respond?.(request, response)) return;
             const pathname = decodeURIComponent(new URL(request.url, "http://localhost").pathname);
             const relative = pathname === "/"
                 ? "index.html"
@@ -1098,11 +1316,14 @@ class CdpClient {
         this.socket = socket;
         this.nextID = 1;
         this.pending = new Map();
+        this.listeners = new Map();
         socket.addEventListener("message", (event) => {
             const message = JSON.parse(String(event.data));
-            if (!message.id || !this.pending.has(message.id)) {
+            if (!message.id) {
+                for (const listener of this.listeners.get(message.method) ?? []) listener(message.params);
                 return;
             }
+            if (!this.pending.has(message.id)) return;
             const { resolve: resolvePromise, reject } = this.pending.get(message.id);
             this.pending.delete(message.id);
             if (message.error) {
@@ -1111,6 +1332,11 @@ class CdpClient {
                 resolvePromise(message.result);
             }
         });
+    }
+
+    on(method, listener) {
+        if (!this.listeners.has(method)) this.listeners.set(method, []);
+        this.listeners.get(method).push(listener);
     }
 
     send(method, params = {}) {
@@ -1138,3 +1364,965 @@ class CdpClient {
         this.socket.close();
     }
 }
+
+test("privacy-safe PostHog foundation audits the real pinned SDK without production ingestion", { timeout: 60_000 }, async context => {
+    let site;
+    let browser;
+    let client;
+    let mode = "allowed";
+    let requests = [];
+    let sdkLoads = 0;
+    const pending = new Set();
+    const interceptionErrors = [];
+    const runtimeErrors = [];
+    const unexpectedExternalRequests = [];
+    const canaries = ["QR42_SECRET", "QUERY42_SECRET", "HASH42_SECRET", "REFERRER42_SECRET", "ERROR42_SECRET"];
+    try {
+        site = await startStaticServer();
+        browser = await startBrowser();
+        const target = await createTarget(browser.debugOrigin, "about:blank");
+        client = await CdpClient.connect(target.webSocketDebuggerUrl);
+        await client.send("Page.enable");
+        await client.send("Runtime.enable");
+        await client.send("Network.enable", { maxPostDataSize: 2_000_000 });
+        // Exercise capture with a normal browser UA; production remains disabled and loopback is excluded.
+        await client.send("Network.setUserAgentOverride", { userAgent: (await client.evaluate("navigator.userAgent")).replace("HeadlessChrome", "Chrome") });
+        await client.send("Network.setCacheDisabled", { cacheDisabled: true });
+        await client.send("Browser.setDownloadBehavior", { behavior: "deny" });
+        client.on("Runtime.exceptionThrown", event => runtimeErrors.push(event));
+        await client.send("Page.addScriptToEvaluateOnNewDocument", { source: `
+            // Simulate a human browser only in this loopback sandbox fixture.
+            Object.defineProperty(navigator, "webdriver", { value: false });
+            const mode = new URL(location.href).searchParams.get('mode');
+            if (mode === 'GPC') Object.defineProperty(navigator, 'globalPrivacyControl', { value: true });
+            if (mode === 'DNT') Object.defineProperty(navigator, 'doNotTrack', { value: '1' });
+            if (mode === 'offline') Object.defineProperty(navigator, 'onLine', { value: false });
+            window.__analyticsCsp = [];
+            document.addEventListener('securitypolicyviolation', event => window.__analyticsCsp.push(event.blockedURI));
+        ` });
+        client.on("Fetch.requestPaused", ({ requestId, request }) => {
+            const operation = (async () => {
+                const url = new URL(request.url);
+                if (url.origin === site.origin) {
+                    if (url.pathname.endsWith("/vendor/posthog/posthog.mjs")) {
+                        sdkLoads++;
+                        if (mode === "SDK blocked") return client.send("Fetch.failRequest", { requestId, errorReason: "BlockedByClient" });
+                    }
+                    if (url.pathname.endsWith("/assets/analytics.mjs") && mode === "wrapper blocked") {
+                        return client.send("Fetch.failRequest", { requestId, errorReason: "BlockedByClient" });
+                    }
+                    return client.send("Fetch.continueRequest", { requestId });
+                }
+                if (url.origin === "https://eu.i.posthog.com") {
+                    requests.push({ ...request });
+                    if (request.method === "POST" && (mode === "endpoint blocked" || mode === "timeout")) return client.send("Fetch.failRequest", { requestId, errorReason: mode === "timeout" ? "TimedOut" : "BlockedByClient" });
+                    return client.send("Fetch.fulfillRequest", {
+                        requestId, responseCode: request.method === "OPTIONS" ? 200 : mode === "HTTP 4xx" ? 400 : mode === "HTTP 5xx" ? 503 : 200,
+                        responseHeaders: [
+                            { name: "Content-Type", value: "application/json" },
+                            { name: "Access-Control-Allow-Origin", value: site.origin },
+                            { name: "Access-Control-Allow-Methods", value: "POST, OPTIONS" },
+                            { name: "Access-Control-Allow-Headers", value: "content-type" },
+                        ],
+                        body: Buffer.from('{"status":1}').toString("base64"),
+                    });
+                }
+                if (url.origin !== "https://static.cloudflareinsights.com" && url.origin !== "https://cloudflareinsights.com") unexpectedExternalRequests.push(request.url);
+                // The fake token and interception protect both provider and Cloudflare endpoints.
+                return client.send("Fetch.failRequest", { requestId, errorReason: "BlockedByClient" });
+            })().catch(error => interceptionErrors.push(error)).finally(() => pending.delete(operation));
+            pending.add(operation);
+        });
+        await client.send("Fetch.enable", { patterns: [{ urlPattern: "*" }] });
+
+        for (mode of ["allowed", "SDK blocked", "wrapper blocked", "endpoint blocked", "timeout", "HTTP 4xx", "HTTP 5xx", "offline", "GPC", "DNT"]) {
+            await context.test(mode, async () => {
+                requests = [];
+                sdkLoads = 0;
+                await client.send("Page.navigate", {
+                    url: `${site.origin}/qr-code-generator/?mode=${encodeURIComponent(mode)}&secret=${canaries[1]}#${canaries[2]}`,
+                    referrer: `${site.origin}/private?secret=${canaries[3]}`,
+                });
+                await waitFor(client, `document.readyState === 'complete' && Boolean(document.querySelector('#module-shape-trigger'))`);
+                assert.equal(sdkLoads, 0, "Disabled production bootstrap must not even load the SDK on localhost");
+                assert.equal(requests.length, 0, "Initialization must not emit automatic events");
+
+                if (mode !== "wrapper blocked") {
+                    const initialized = await client.evaluate(`(async () => {
+                        const { createAnalytics } = await import('../assets/analytics.mjs?v=20261005a');
+                        window.__analytics = createAnalytics({ config: { enabled: true, environment: 'sandbox', token: 'phc_QRSpellBrowserTestOnly' } });
+                        return window.__analytics.initAnalytics();
+                    })()`);
+                    assert.equal(initialized, !["SDK blocked", "offline", "GPC", "DNT"].includes(mode));
+                    assert.equal(requests.length, 0, "Real SDK init must not request flags, emit events, or load dependencies");
+                    if (initialized) {
+                        const accepted = await client.evaluate(`(() => [
+                            window.__analytics.captureEvent('site_page_viewed', { route: 'generator' }),
+                            window.__analytics.captureEvent('generator_viewed'),
+                            window.__analytics.captureEvent('generator_viewed', { content: ${JSON.stringify(canaries[0])} }),
+                            window.__analytics.captureEvent('generator_viewed', { error: ${JSON.stringify(canaries[4])} }),
+                        ])()`);
+                        assert.deepEqual(accepted, [true, true, false, false]);
+                        await waitForRequest(() => requests.filter(request => request.method === "POST").length >= 2);
+                        for (const request of requests.filter(request => request.method === "POST")) {
+                            assert.ok(request.postData, "Audit the actual SDK body");
+                            const body = JSON.parse(request.postData);
+                            assert.deepEqual(Object.keys(body).sort(), ["api_key", "batch", "sent_at"]);
+                            assert.equal(body.api_key, "phc_QRSpellBrowserTestOnly");
+                            const events = body.batch;
+                            for (const event of events) {
+                                assert.ok(["site_page_viewed", "generator_viewed"].includes(event.event));
+                                assert.deepEqual(Object.keys(event.properties).sort(), [
+                                    "analytics_schema_version", "environment", "token", "distinct_id", "$lib", "$lib_version", "$process_person_profile", "$geoip_disable",
+                                    ...(event.event === "site_page_viewed" ? ["route"] : []),
+                                ].sort());
+                                assert.equal(event.properties.environment, "sandbox");
+                                assert.equal(event.properties.distinct_id, "$posthog_cookieless");
+                                assert.equal(event.properties.$process_person_profile, false);
+                                assert.equal(event.properties.$geoip_disable, true);
+                            }
+                        }
+                    } else assert.equal(requests.length, 0);
+                }
+
+                await client.evaluate(`(() => {
+                    const input = document.querySelector('#qr-content');
+                    input.value = ${JSON.stringify(canaries[0])};
+                    input.dispatchEvent(new Event('input', { bubbles: true }));
+                })()`);
+                await waitFor(client, `document.querySelector('#verification-status').dataset.state === 'verified'`);
+                await client.evaluate(`(() => {
+                    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { write: async () => { window.__copied42 = true; } } });
+                    document.querySelector('#copy-qr').click();
+                })()`);
+                await waitFor(client, `window.__copied42 && document.querySelector('#verification-status').textContent.includes('PNG copied')`);
+                await client.evaluate(`document.querySelector('#download-qr').click()`);
+                await waitFor(client, `document.querySelector('#verification-status').textContent.includes('PNG downloaded')`);
+                await client.evaluate(`document.querySelector('#reset-generator').click()`);
+                assert.equal(await client.evaluate(`document.querySelector('#qr-content').value`), "");
+                const storage = await client.evaluate(`({ cookies: document.cookie, local: Object.keys(localStorage), session: Object.keys(sessionStorage), csp: window.__analyticsCsp })`);
+                assert.deepEqual(storage, { cookies: "", local: [], session: [], csp: [] });
+                for (const canary of canaries) assert.ok(!JSON.stringify(requests).includes(canary), `Final outbound traffic must exclude ${canary}`);
+                assert.deepEqual(runtimeErrors, [], "No unhandled analytics error may escape into the page");
+                assert.deepEqual(unexpectedExternalRequests, [], "SDK must not load remote dependencies or contact other providers");
+            });
+        }
+        await Promise.all([...pending]);
+        assert.deepEqual(interceptionErrors, []);
+        context.diagnostic("Real vendored SDK tested with fake token and fully intercepted network. Copy uses a clipboard stub; downloads are initiated and denied by the test browser.");
+    } finally {
+        await cleanupTestResources({ client, browser, site });
+    }
+});
+
+
+test("website events audit SDK envelopes and native navigation without production traffic", { timeout: 60_000 }, async context => {
+    let site;
+    let browser;
+    let client;
+    let mode = "allowed";
+    let requests = [];
+    let sdkLoads = 0;
+    let storeNavigations = 0;
+    const pending = new Set();
+    const interceptionErrors = [];
+    const runtimeErrors = [];
+    const unexpected = [];
+    const storeUrl = "https://apps.apple.com/app/id6771453521";
+    const token = "phc_QRSpellWebsiteTestOnly";
+    const canaries = ["QUERY43_SECRET", "HASH43_SECRET", "REFERRER43_SECRET", "DOM43_SECRET", "person43@example.com"];
+    const events = () => requests.flatMap(request => {
+        assert.ok(request.postData, "Audit the complete real SDK request body");
+        const envelope = JSON.parse(request.postData);
+        assert.deepEqual(Object.keys(envelope).sort(), ["api_key", "batch", "sent_at"]);
+        assert.equal(envelope.api_key, token);
+        return envelope.batch;
+    });
+    const websiteEvents = () => events().filter(event => event.event !== "generator_viewed");
+    const audit = () => {
+        for (const event of events()) {
+            assert.ok(["site_page_viewed", "app_store_clicked", "generator_viewed"].includes(event.event));
+            assert.deepEqual(Object.keys(event.properties).sort(), [
+                "analytics_schema_version", "environment", "token", "distinct_id", "$lib", "$lib_version", "$process_person_profile", "$geoip_disable",
+                ...(event.event === "site_page_viewed" ? ["route"] : event.event === "app_store_clicked" ? ["source"] : []),
+            ].sort());
+            assert.equal(event.properties.environment, "sandbox");
+            assert.equal(event.properties.distinct_id, "$posthog_cookieless");
+            assert.equal(event.properties.$process_person_profile, false);
+            assert.equal(event.properties.$geoip_disable, true);
+        }
+        for (const canary of canaries) assert.ok(!JSON.stringify(requests).includes(canary), `Provider traffic leaked ${canary}`);
+        assert.deepEqual(runtimeErrors, [], "No unhandled analytics error may reach the page");
+        assert.deepEqual(unexpected, [], "All unexpected external requests are blocked");
+    };
+    const load = async (path = "/") => {
+        requests = [];
+        sdkLoads = 0;
+        await client.send("Page.navigate", {
+            url: `${site.origin}${path}?mode=${encodeURIComponent(mode)}&secret=${canaries[0]}&utm_source=${encodeURIComponent(canaries[4])}&utm_campaign=${canaries[0]}#${canaries[1]}`,
+            referrer: `${site.origin}/private?secret=${canaries[2]}`,
+        });
+        await waitFor(client, "document.readyState === 'complete' && Boolean(document.body?.getAttribute('data-analytics-route'))");
+        return client.evaluate(`(async () => {
+            try { return await (async () => (await import('/assets/site-analytics.mjs?v=20261005a')).startSiteAnalytics())(); }
+            catch { return false; }
+        })()`);
+    };
+    const activateCta = async (source, keyboard) => {
+        // Keep the production link markup intact except target: this fixture uses
+        // same-tab navigation so its App Store document can be fully intercepted.
+        const bounds = await client.evaluate(`(async () => {
+            const link = document.querySelector('[data-analytics-source="${source}"]');
+            const original = { href: link.getAttribute('href'), target: link.target, rel: link.rel };
+            link.target = '_self';
+            document.documentElement.style.scrollBehavior = 'auto';
+            link.scrollIntoView({ block: 'center', behavior: 'instant' });
+            link.focus();
+            await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+            const rect = link.getBoundingClientRect();
+            return { original, x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
+        })()`);
+        assert.deepEqual(bounds.original, { href: storeUrl, target: "_blank", rel: "noopener noreferrer" });
+        const before = storeNavigations;
+        if (keyboard) await pressKey(client, "Enter");
+        else {
+            await client.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: bounds.x, y: bounds.y });
+            await client.send("Input.dispatchMouseEvent", { type: "mousePressed", x: bounds.x, y: bounds.y, button: "left", clickCount: 1 });
+            await client.send("Input.dispatchMouseEvent", { type: "mouseReleased", x: bounds.x, y: bounds.y, button: "left", clickCount: 1 });
+        }
+        await waitFor(client, "document.title === 'Intercepted App Store' && document.readyState === 'complete'");
+        assert.equal(storeNavigations, before + 1, "Native activation must navigate even when analytics fails");
+    };
+
+    try {
+        site = await startStaticServer();
+        browser = await startBrowser();
+        const target = await createTarget(browser.debugOrigin, "about:blank");
+        client = await CdpClient.connect(target.webSocketDebuggerUrl);
+        await client.send("Page.enable");
+        await client.send("Runtime.enable");
+        await client.send("Network.enable", { maxPostDataSize: 2_000_000 });
+        await client.send("Network.setCacheDisabled", { cacheDisabled: true });
+        await client.send("Network.setUserAgentOverride", { userAgent: (await client.evaluate("navigator.userAgent")).replace("HeadlessChrome", "Chrome") });
+        client.on("Runtime.exceptionThrown", event => runtimeErrors.push(event));
+        client.on("Network.requestWillBeSent", ({ request }) => {
+            if (new URL(request.url).origin === "https://eu.i.posthog.com" && request.method === "POST") requests.push({ ...request });
+        });
+        await client.send("Page.addScriptToEvaluateOnNewDocument", { source: `
+            // Only this intercepted loopback sandbox simulates a human browser.
+            window.__siteCspViolations = [];
+            document.addEventListener('securitypolicyviolation', event => window.__siteCspViolations.push(event.effectiveDirective));
+            Object.defineProperty(navigator, 'webdriver', { value: false });
+            const mode = new URL(location.href).searchParams.get('mode');
+            if (mode === 'GPC') Object.defineProperty(navigator, 'globalPrivacyControl', { value: true });
+            if (mode === 'DNT') Object.defineProperty(navigator, 'doNotTrack', { value: '1' });
+            if (mode === 'offline') Object.defineProperty(navigator, 'onLine', { value: false });
+        ` });
+        client.on("Fetch.requestPaused", ({ requestId, request }) => {
+            const operation = (async () => {
+                const url = new URL(request.url);
+                const fulfill = (body, contentType = "text/javascript") => client.send("Fetch.fulfillRequest", {
+                    requestId, responseCode: 200,
+                    responseHeaders: [{ name: "Content-Type", value: contentType }],
+                    body: Buffer.from(body).toString("base64"),
+                });
+                if (url.origin === site.origin) {
+                    if (url.pathname.endsWith("/assets/analytics-config.mjs") && mode !== "production disabled") {
+                        return fulfill(`export const analyticsConfig = Object.freeze({ enabled: true, environment: 'sandbox', token: '${token}' });`);
+                    }
+                    if (url.pathname.endsWith("/vendor/posthog/posthog.mjs")) sdkLoads++;
+                    const blocked = mode === "SDK blocked" && url.pathname.endsWith("/vendor/posthog/posthog.mjs")
+                        || mode === "module blocked" && url.pathname.endsWith("/assets/site-analytics.mjs")
+                        || mode === "wrapper blocked" && url.pathname.endsWith("/assets/analytics.mjs");
+                    if (blocked) return client.send("Fetch.failRequest", { requestId, errorReason: "BlockedByClient" });
+                    return client.send("Fetch.continueRequest", { requestId });
+                }
+                if (request.url === storeUrl && request.resourceType !== "XHR") {
+                    storeNavigations++;
+                    return fulfill('<!doctype html><title>Intercepted App Store</title><link rel="icon" href="data:,"><p>Navigation completed.</p>', "text/html");
+                }
+                if (url.origin === "https://eu.i.posthog.com") {
+                    if (request.method === "POST" && ["endpoint blocked", "timeout"].includes(mode)) {
+                        return client.send("Fetch.failRequest", { requestId, errorReason: mode === "timeout" ? "TimedOut" : "BlockedByClient" });
+                    }
+                    return client.send("Fetch.fulfillRequest", {
+                        requestId, responseCode: request.method === "OPTIONS" ? 200 : mode === "HTTP 4xx" ? 400 : mode === "HTTP 5xx" ? 503 : 200,
+                        responseHeaders: [
+                            { name: "Content-Type", value: "application/json" },
+                            { name: "Access-Control-Allow-Origin", value: site.origin },
+                            { name: "Access-Control-Allow-Methods", value: "POST, OPTIONS" },
+                            { name: "Access-Control-Allow-Headers", value: "content-type" },
+                        ],
+                        body: Buffer.from('{"status":1}').toString("base64"),
+                    });
+                }
+                if (!["https://static.cloudflareinsights.com", "https://cloudflareinsights.com"].includes(url.origin)) unexpected.push(request.url);
+                return client.send("Fetch.failRequest", { requestId, errorReason: "BlockedByClient" });
+            })().catch(error => {
+                // Native navigation/instant legal redirect can cancel a paused request.
+                if (error.message !== "Invalid InterceptionId.") interceptionErrors.push(error);
+            }).finally(() => pending.delete(operation));
+            pending.add(operation);
+        });
+        await client.send("Fetch.enable", { patterns: [{ urlPattern: "*" }] });
+
+        await context.test("each public route emits one view without URL or DOM data", async () => {
+            for (const [path, route] of [["/", "home"], ["/qr-code-generator/", "generator"], ["/changelog/", "changelog"], ["/privacy/", "privacy"], ["/helpcenter/", "helpcenter"], ["/Acknowledgements/", "acknowledgements"]]) {
+                assert.equal(await load(path), true);
+                await waitForRequest(() => websiteEvents().length === 1);
+                await waitFor(client, "document.styleSheets.length > 0 && document.images[0]?.naturalWidth > 0");
+                assert.deepEqual(await client.evaluate("window.__siteCspViolations"), [], `${route} assets and SDK must work under CSP`);
+                await client.evaluate(`document.body.append(document.createTextNode(${JSON.stringify(canaries[3])})); location.hash = 'changed';`);
+                assert.equal(await client.evaluate(`(async () => (await import('/assets/site-analytics.mjs?v=20261005a')).startSiteAnalytics())()`), true);
+                assert.deepEqual(websiteEvents().map(event => [event.event, event.properties.route]), [["site_page_viewed", route]]);
+                assert.deepEqual(await client.evaluate("({ cookies: document.cookie, local: Object.keys(localStorage), session: Object.keys(sessionStorage) })"), { cookies: "", local: [], session: [] });
+                audit();
+            }
+        });
+
+        await context.test("site-wide CSP preserves the image gallery and Help Center copy controls", async () => {
+            await load();
+            await client.evaluate("document.querySelector('.app-preview-trigger').click()");
+            await waitFor(client, "document.querySelector('.image-lightbox').open && document.querySelector('.image-lightbox-image').naturalWidth > 0");
+            await pressKey(client, "Escape");
+            assert.equal(await client.evaluate("document.querySelector('.image-lightbox').open"), false);
+            assert.deepEqual(await client.evaluate("window.__siteCspViolations"), []);
+            await load("/helpcenter/");
+            await client.evaluate(`Object.defineProperty(navigator, 'clipboard', { configurable: true, value: {
+                writeText: async value => { window.__helpCopied45 = value; }
+            } }); document.querySelector('[data-copy-value]').click();`);
+            await waitFor(client, "document.querySelector('[data-copy-value]').dataset.copyState === 'success'");
+            assert.equal(await client.evaluate("window.__helpCopied45"), await client.evaluate("document.querySelector('[data-copy-value]').dataset.copyValue"));
+            assert.deepEqual(await client.evaluate("window.__siteCspViolations"), []);
+            audit();
+        });
+
+        await context.test("legal redirect stays immediate and reports its destination document", async () => {
+            await load("/legal/");
+            await waitFor(client, "document.body?.getAttribute('data-analytics-route') === 'acknowledgements'");
+            await client.evaluate(`(async () => (await import('/assets/site-analytics.mjs?v=20261005a')).startSiteAnalytics())()`);
+            await waitForRequest(() => events().some(event => event.properties.route === "acknowledgements"));
+            assert.equal(events().filter(event => event.properties.route === "acknowledgements").length, 1);
+            assert.ok(events().filter(event => event.properties.route === "legal").length <= 1);
+            audit();
+        });
+
+        await context.test("pointer and keyboard activation keep all CTA sources attributable", async () => {
+            for (const [source, path] of [["header", "/"], ["homepage_hero", "/"], ["generator_cta", "/qr-code-generator/"], ["footer", "/"]]) {
+                for (const keyboard of [false, true]) {
+                    assert.equal(await load(path), true);
+                    await waitForRequest(() => websiteEvents().length === 1);
+                    await activateCta(source, keyboard);
+                    await waitForRequest(() => events().some(event => event.event === "app_store_clicked"));
+                    assert.deepEqual(websiteEvents().map(event => event.event), ["site_page_viewed", "app_store_clicked"]);
+                    assert.equal(websiteEvents()[1].properties.source, source);
+                    audit();
+                }
+            }
+        });
+
+        for (mode of ["production disabled", "module blocked", "wrapper blocked", "SDK blocked", "endpoint blocked", "timeout", "HTTP 4xx", "HTTP 5xx", "offline", "DNT", "GPC"]) {
+            await context.test(`navigation survives ${mode}`, async () => {
+                const canInitialize = ["endpoint blocked", "timeout", "HTTP 4xx", "HTTP 5xx"].includes(mode);
+                assert.equal(await load(), canInitialize);
+                if (canInitialize) await waitForRequest(() => requests.length >= 1);
+                else assert.equal(requests.length, 0);
+                if (["production disabled", "offline", "DNT", "GPC"].includes(mode)) assert.equal(sdkLoads, 0);
+                await activateCta("header", true);
+                if (!canInitialize) assert.equal(requests.length, 0);
+                audit();
+            });
+        }
+        await Promise.all([...pending]);
+        assert.deepEqual(interceptionErrors, []);
+        context.diagnostic("Real SDK, fake sandbox config/token, fully intercepted network. Native same-tab CTA fixture covers keyboard/pointer; original href, target and rel are checked before fixture activation.");
+    } finally {
+        await cleanupTestResources({ client, browser, site });
+    }
+});
+
+
+test("Generator event hooks follow real renders, export success and Reset", { timeout: 60_000 }, async context => {
+    let site;
+    let browser;
+    let client;
+    const pending = new Set();
+    const errors = [];
+    const runtimeErrors = [];
+    const events = name => client.evaluate(`(window.__generatorEvents ?? []).filter(event => event.name === ${JSON.stringify(name)})`);
+    const load = async () => {
+        await navigate(client, `${site.origin}/qr-code-generator/`);
+        await waitFor(client, `Boolean(document.querySelector('#module-shape-trigger')) && window.__generatorEvents?.some(event => event.name === 'generator_viewed')`);
+    };
+    const type = value => client.evaluate(`(() => {
+        const input = document.querySelector('#qr-content');
+        input.value = ${JSON.stringify(value)};
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+    })()`);
+    const quality = async count => {
+        await waitFor(client, `(window.__generatorEvents ?? []).filter(event => event.name === 'qr_generation_completed').length >= ${count}`);
+        return events('qr_generation_completed');
+    };
+    const pause = () => client.evaluate(`new Promise(resolve => setTimeout(resolve, 800))`);
+    try {
+        site = await startStaticServer();
+        browser = await startBrowser();
+        const target = await createTarget(browser.debugOrigin, 'about:blank');
+        client = await CdpClient.connect(target.webSocketDebuggerUrl);
+        await client.send('Page.enable');
+        await client.send('Runtime.enable');
+        await client.send('Browser.setDownloadBehavior', { behavior: 'deny' });
+        client.on('Runtime.exceptionThrown', event => runtimeErrors.push(event));
+        client.on('Fetch.requestPaused', ({ requestId, request }) => {
+            const operation = (async () => {
+                const url = new URL(request.url);
+                if (url.origin === site.origin && url.pathname === '/assets/analytics.mjs') {
+                    return client.send('Fetch.fulfillRequest', {
+                        requestId, responseCode: 200, responseHeaders: [{ name: 'Content-Type', value: 'text/javascript' }],
+                        body: Buffer.from(`
+                            export const initAnalytics = async () => true;
+                            export function captureEvent(name, properties = {}) {
+                                (window.__generatorEvents ??= []).push({ name, properties });
+                                return true;
+                            }
+                        `).toString('base64'),
+                    });
+                }
+                return client.send(url.origin === site.origin ? 'Fetch.continueRequest' : 'Fetch.failRequest',
+                    url.origin === site.origin ? { requestId } : { requestId, errorReason: 'BlockedByClient' });
+            })().catch(error => errors.push(error)).finally(() => pending.delete(operation));
+            pending.add(operation);
+        });
+        await client.send('Fetch.enable', { patterns: [{ urlPattern: '*' }] });
+
+        await context.test('rapid typing and slider changes settle once; repeated configurations stay deduplicated after Reset', async () => {
+            await load();
+            await client.evaluate(`document.querySelector('#reset-generator').click()`);
+            assert.equal((await events('generator_reset')).length, 0);
+            await client.evaluate(`(async () => {
+                const input = document.querySelector('#qr-content');
+                const slider = document.querySelector('#center-size');
+                for (let i = 0; i < 12; i++) {
+                    input.value = 'HOOK44_SECRET_' + i;
+                    input.dispatchEvent(new Event('input', { bubbles: true }));
+                    slider.value = String(0.2 + i * 0.005);
+                    slider.dispatchEvent(new Event('input', { bubbles: true }));
+                    await new Promise(resolve => setTimeout(resolve, 15));
+                }
+            })()`);
+            assert.equal((await events('qr_generation_completed')).length, 0);
+            assert.equal((await quality(1)).length, 1);
+            assert.equal((await events('generator_started')).length, 1);
+            await client.evaluate(`document.querySelector('#reset-generator').click(); document.querySelector('#reset-generator').click();`);
+            assert.equal((await events('generator_reset')).length, 1);
+            await type('HOOK44_SECRET_11');
+            await waitFor(client, `document.querySelector('#verification-status').dataset.state === 'verified'`);
+            await pause();
+            assert.equal((await events('qr_generation_completed')).length, 1);
+            assert.equal((await events('generator_started')).length, 1);
+        });
+
+        await context.test('displayed warning categories match the captured quality event', async () => {
+            await load();
+            await client.evaluate(`(() => {
+                for (const [selector, value] of [['#foreground-color', '#777777'], ['#background-color', '#666666']]) {
+                    const input = document.querySelector(selector);
+                    input.value = value;
+                    input.dispatchEvent(new Event('change', { bubbles: true }));
+                }
+            })()`);
+            await type('WARN46_SECRET');
+            const captured = (await quality(1))[0].properties;
+            assert.equal(await client.evaluate(`document.querySelectorAll('#readability-warnings li').length`), 2);
+            assert.deepEqual({
+                warning_count: captured.warning_count,
+                inverted: captured.warning_inverted_modules,
+                lowContrast: captured.warning_low_contrast,
+                dense: captured.warning_dense_content,
+                centerReliability: captured.warning_weak_center_reliability,
+            }, { warning_count: 2, inverted: true, lowContrast: true, dense: false, centerReliability: false });
+            assert.ok(!JSON.stringify(captured).includes('WARN46_SECRET'));
+        });
+
+        await context.test('Copy failure emits no export, while a pending successful Copy preserves its original settings', async () => {
+            await load();
+            await type('HOOK44_SECRET_11');
+            await quality(1);
+            await client.evaluate(`(() => {
+                Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { write: async () => { throw new Error('CLIPBOARD44_SECRET'); } } });
+                document.querySelector('#copy-qr').click();
+            })()`);
+            await waitFor(client, `document.querySelector('#verification-status').textContent.includes('CLIPBOARD44_SECRET')`);
+            assert.equal((await events('qr_exported')).length, 0);
+            await client.evaluate(`(() => {
+                Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { write: () => new Promise(resolve => { window.__finishCopy44 = resolve; }) } });
+                document.querySelector('#copy-qr').click();
+                const shape = document.querySelector('#module-shape');
+                shape.value = 'dots';
+                shape.dispatchEvent(new Event('change', { bubbles: true }));
+                window.__finishCopy44();
+            })()`);
+            await waitFor(client, `window.__generatorEvents.filter(event => event.name === 'qr_exported').length === 1`);
+            assert.equal((await events('qr_exported'))[0].properties.module_shape, 'square');
+            await quality(2);
+            await client.evaluate(`document.querySelector('#download-qr').click()`);
+            await waitFor(client, `window.__generatorEvents.filter(event => event.name === 'qr_exported').length === 2`);
+            assert.deepEqual((await events('qr_exported')).map(event => [event.properties.method, event.properties.module_shape]), [['copy', 'square'], ['download', 'dots']]);
+        });
+
+        for (const [outcome, setup, content] of [
+            ['verified', '', 'QR44_SECRET'],
+            ['capacity_rejected', '', 'X'.repeat(6000)],
+            ['decode_failed', 'window.jsQR = () => null;', 'QR44_SECRET'],
+            ['decoded_mismatch', "window.jsQR = () => ({ data: 'DECODE44_SECRET' });", 'QR44_SECRET'],
+            ['render_failed', "window.QRCodeStyling = function() { throw new Error('ERROR44_SECRET'); };", 'QR44_SECRET'],
+        ]) {
+            await context.test(`latest production result maps to ${outcome}`, async () => {
+                await load();
+                if (setup) await client.evaluate(setup);
+                await type(content);
+                assert.equal((await quality(1))[0].properties.outcome, outcome);
+            });
+        }
+
+        await context.test('an older delayed render cannot emit after the latest render has settled', async () => {
+            await load();
+            await client.evaluate(`(() => {
+                const Original = window.QRCodeStyling;
+                window.QRCodeStyling = function(options) {
+                    const qr = new Original(options);
+                    if (options.data === 'OLD44_SECRET') {
+                        const setup = qr._setupSvg.bind(qr);
+                        qr._setupSvg = () => {
+                            setup();
+                            qr._svgDrawingPromise = Promise.all([qr._svgDrawingPromise, new Promise(resolve => setTimeout(resolve, 1200))]);
+                            window.__oldRender44 = true;
+                        };
+                    }
+                    return qr;
+                };
+            })()`);
+            await type('OLD44_SECRET');
+            await waitFor(client, 'window.__oldRender44 === true');
+            await type('LATEST44_SECRET');
+            assert.equal((await quality(1))[0].properties.outcome, 'verified');
+            await pause();
+            assert.equal((await events('qr_generation_completed')).length, 1);
+            assert.equal(await client.evaluate(`document.querySelector('#verification-status').dataset.state`), 'verified');
+        });
+
+        await context.test('center-image rejection maps to a safe outcome without filename or image content', async () => {
+            await load();
+            await client.evaluate(`(() => {
+                const input = document.querySelector('#qr-content');
+                input.value = 'QR44_SECRET';
+                input.dispatchEvent(new Event('input', { bubbles: true }));
+                const type = document.querySelector('#center-type');
+                type.value = 'image';
+                type.dispatchEvent(new Event('change', { bubbles: true }));
+                const transfer = new DataTransfer();
+                transfer.items.add(new File(['IMAGE44_SECRET'], 'FILE44_SECRET.png', { type: 'image/png' }));
+                const image = document.querySelector('#center-image');
+                image.files = transfer.files;
+                image.dispatchEvent(new Event('change', { bubbles: true }));
+            })()`);
+            const captured = await quality(1);
+            assert.equal(captured[0].properties.outcome, 'center_image_rejected');
+            assert.equal(captured[0].properties.center_type, 'image');
+            assert.ok(!JSON.stringify(await client.evaluate('window.__generatorEvents')).includes('SECRET'));
+        });
+        await Promise.all([...pending]);
+        assert.deepEqual(errors, []);
+        assert.deepEqual(runtimeErrors, []);
+        context.diagnostic('Hooks exercised with a local capture stub; no provider requests. Clipboard is stubbed and disk downloads are denied.');
+    } finally {
+        await cleanupTestResources({ client, browser, site });
+    }
+});
+
+
+test("Generator product events audit real SDK traffic and survive analytics failures", { timeout: 90_000 }, async context => {
+    let site;
+    let browser;
+    let client;
+    let mode = 'allowed';
+    let loadId = 0;
+    let requests = [];
+    let cloudflareRequests = [];
+    const beaconSource = cloudflareTestSource();
+    const pending = new Set();
+    const errors = [];
+    const runtimeErrors = [];
+    const unexpected = [];
+    const token = 'phc_QRSpellGeneratorTestOnly';
+    const canaries = ['QR44_NETWORK_SECRET', 'T44ABC', 'IMAGE44_NETWORK_SECRET', 'FILE44_NETWORK_SECRET', 'QUERY44_NETWORK_SECRET', 'HASH44_NETWORK_SECRET', 'REFERRER44_NETWORK_SECRET', 'ERROR44_NETWORK_SECRET'];
+    const events = () => requests.flatMap(request => {
+        assert.ok(request.postData, 'Audit the complete final SDK body');
+        const body = JSON.parse(request.postData);
+        assert.deepEqual(Object.keys(body).sort(), ['api_key', 'batch', 'sent_at']);
+        assert.equal(body.api_key, token);
+        return body.batch;
+    });
+    const count = name => events().filter(event => event.event === name).length;
+    const audit = async () => {
+        await auditAnalyticsRequests(client, [...requests, ...cloudflareRequests], canaries);
+        for (const event of events()) {
+            assert.ok(Object.hasOwn(analyticsSchema.events, event.event));
+            for (const key of Object.keys(event)) assert.ok(['event', 'properties', 'uuid', 'timestamp'].includes(key));
+            const definition = analyticsSchema.events[event.event];
+            const approved = [...Object.keys(definition.properties), ...analyticsSchema.provider_transport_property_allowlist];
+            assert.deepEqual(Object.keys(event.properties).sort(), approved.sort());
+            for (const [key, rule] of Object.entries(definition.properties)) {
+                assert.ok(Object.hasOwn(rule, 'const') ? event.properties[key] === rule.const : rule.enum.includes(event.properties[key]));
+            }
+            assert.equal(event.properties.environment, 'sandbox');
+            assert.equal(event.properties.distinct_id, '$posthog_cookieless');
+            assert.equal(event.properties.$process_person_profile, false);
+            assert.equal(event.properties.$geoip_disable, true);
+        }
+        const serialized = JSON.stringify(requests);
+        for (const canary of canaries) {
+            assert.ok(!serialized.includes(canary), `Outbound analytics leaked ${canary}`);
+            assert.ok(!serialized.includes(Buffer.from(canary).toString('base64')), `Outbound analytics leaked encoded ${canary}`);
+        }
+        assert.deepEqual(runtimeErrors, []);
+        assert.deepEqual(unexpected, []);
+    };
+    const load = async (referrer = `${site.origin}/`) => {
+        requests = [];
+        cloudflareRequests = [];
+        await client.send('Page.navigate', {
+            url: `${site.origin}/qr-code-generator/?mode=${encodeURIComponent(mode)}&navigation=${++loadId}&secret=${canaries[4]}#${canaries[5]}`,
+            referrer,
+            referrerPolicy: "unsafeUrl",
+        });
+        await waitFor(client, `document.readyState === 'complete' && Boolean(document.querySelector('#module-shape-trigger'))`);
+        await client.evaluate(`(async () => {
+            try { return await (await import('/assets/analytics.mjs?v=20261005a')).initAnalytics(); } catch { return false; }
+        })()`);
+    };
+    const type = value => client.evaluate(`(() => {
+        const input = document.querySelector('#qr-content');
+        input.value = ${JSON.stringify(value)};
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+    })()`);
+    const exportAndReset = async () => {
+        await waitFor(client, "document.querySelector('#verification-status').dataset.state === 'verified' && !document.querySelector('#copy-qr').disabled");
+        await client.evaluate(`(() => {
+            Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { write: async items => {
+                window.__networkCopied44 = await items[0].getType('image/png');
+            } } });
+            document.querySelector('#copy-qr').click();
+        })()`);
+        await waitFor(client, `window.__networkCopied44 instanceof Blob && document.querySelector('#verification-status').textContent.includes('PNG copied')`);
+        await client.evaluate(`document.querySelector('#download-qr').click()`);
+        assert.ok(await client.evaluate(`document.querySelector('#verification-status').textContent.includes('PNG downloaded')`));
+        await client.evaluate(`document.querySelector('#reset-generator').click(); document.querySelector('#reset-generator').click();`);
+        assert.equal(await client.evaluate(`document.querySelector('#qr-content').value`), '');
+    };
+    try {
+        site = await startStaticServer();
+        browser = await startBrowser();
+        const target = await createTarget(browser.debugOrigin, 'about:blank');
+        client = await CdpClient.connect(target.webSocketDebuggerUrl);
+        await client.send('Page.enable');
+        await client.send('Runtime.enable');
+        await client.send('Network.enable', { maxPostDataSize: 2_000_000 });
+        await client.send('Network.setCacheDisabled', { cacheDisabled: true });
+        await client.send('Network.setUserAgentOverride', { userAgent: (await client.evaluate('navigator.userAgent')).replace('HeadlessChrome', 'Chrome') });
+        await client.send('Browser.setDownloadBehavior', { behavior: 'deny' });
+        client.on('Runtime.exceptionThrown', event => runtimeErrors.push(event));
+        client.on('Network.requestWillBeSent', ({ requestId, request }) => {
+            if (new URL(request.url).origin === 'https://eu.i.posthog.com' && request.method === 'POST') requests.push({ requestId, ...request });
+            if ([cloudflareBeaconUrl, cloudflareIngestUrl].includes(request.url)) cloudflareRequests.push({ requestId, ...request });
+        });
+        await client.send('Page.addScriptToEvaluateOnNewDocument', { source: `
+            Object.defineProperty(navigator, 'webdriver', { value: false });
+            const mode = new URL(location.href).searchParams.get('mode');
+            if (mode === 'GPC') Object.defineProperty(navigator, 'globalPrivacyControl', { value: true });
+            if (mode === 'DNT') Object.defineProperty(navigator, 'doNotTrack', { value: '1' });
+            if (mode === 'offline') Object.defineProperty(navigator, 'onLine', { value: false });
+        ` });
+        client.on('Fetch.requestPaused', ({ requestId, request }) => {
+            const operation = (async () => {
+                const url = new URL(request.url);
+                const fulfill = body => client.send('Fetch.fulfillRequest', {
+                    requestId, responseCode: 200, responseHeaders: [{ name: 'Content-Type', value: 'text/javascript' }], body: Buffer.from(body).toString('base64'),
+                });
+                if (url.origin === site.origin) {
+                    if (url.pathname === '/assets/cloudflare-bootstrap.mjs') {
+                        const source = readFileSync(resolve(root, 'assets/cloudflare-bootstrap.mjs'), 'utf8');
+                        return fulfill(mode === 'local baseline disabled' ? source : source.replace('origin !== "https://qrspell.app"', `origin !== ${JSON.stringify(site.origin)}`));
+                    }
+                    if (url.pathname === '/assets/analytics-config.mjs' && mode !== 'production disabled') {
+                        return fulfill(`export const analyticsConfig = Object.freeze({ enabled: true, environment: 'sandbox', token: '${token}' });`);
+                    }
+                    if (url.pathname === '/assets/analytics.mjs' && ['capture throws', 'capture rejects'].includes(mode)) {
+                        return fulfill(`export const initAnalytics = async () => true; export const captureEvent = () => {
+                            ${mode === 'capture throws' ? "throw new Error('CAPTURE44_SECRET');" : "return Promise.reject(new Error('CAPTURE44_SECRET'));"}
+                        };`);
+                    }
+                    const blocked = mode === 'Generator module blocked' && url.pathname.endsWith('/generator-analytics.mjs')
+                        || mode === 'properties module blocked' && url.pathname.endsWith('/generator-event-properties.mjs')
+                        || mode === 'wrapper blocked' && url.pathname === '/assets/analytics.mjs'
+                        || mode === 'SDK blocked' && url.pathname.endsWith('/vendor/posthog/posthog.mjs');
+                    if (blocked) return client.send('Fetch.failRequest', { requestId, errorReason: 'BlockedByClient' });
+                    return client.send('Fetch.continueRequest', { requestId });
+                }
+                if (request.url === cloudflareBeaconUrl) return fulfill(beaconSource);
+                if (url.origin === 'https://eu.i.posthog.com' || request.url === cloudflareIngestUrl) {
+                    if (request.method === 'POST' && ['endpoint blocked', 'timeout'].includes(mode)) {
+                        return client.send('Fetch.failRequest', { requestId, errorReason: mode === 'timeout' ? 'TimedOut' : 'BlockedByClient' });
+                    }
+                    return client.send('Fetch.fulfillRequest', {
+                        requestId, responseCode: request.method === 'OPTIONS' ? 200 : mode === 'HTTP 4xx' ? 400 : mode === 'HTTP 5xx' ? 503 : 200,
+                        responseHeaders: [
+                            { name: 'Content-Type', value: 'application/json' },
+                            { name: 'Access-Control-Allow-Origin', value: site.origin },
+                            { name: 'Access-Control-Allow-Methods', value: 'POST, OPTIONS' },
+                            { name: 'Access-Control-Allow-Headers', value: 'content-type' },
+                        ], body: Buffer.from('{"status":1}').toString('base64'),
+                    });
+                }
+                if (!['https://static.cloudflareinsights.com', 'https://cloudflareinsights.com'].includes(url.origin)) unexpected.push(request.url);
+                return client.send('Fetch.failRequest', { requestId, errorReason: 'BlockedByClient' });
+            })().catch(error => errors.push(error)).finally(() => pending.delete(operation));
+            pending.add(operation);
+        });
+        await client.send('Fetch.enable', { patterns: [{ urlPattern: '*' }] });
+
+        await context.test('production call sites send bounded events through the real pinned SDK without private data', async () => {
+            await load();
+            await waitForRequest(() => count('generator_viewed') === 1);
+            await client.evaluate(`(async () => {
+                const input = document.querySelector('#qr-content');
+                for (let i = 0; i < 15; i++) {
+                    input.value = ${JSON.stringify(canaries[0])} + i;
+                    input.dispatchEvent(new Event('input', { bubbles: true }));
+                    await new Promise(resolve => setTimeout(resolve, 10));
+                }
+            })()`);
+            await waitForRequest(() => count('qr_generation_completed') === 1);
+            assert.equal(count('generator_started'), 1);
+            assert.equal(events().find(event => event.event === 'qr_generation_completed').properties.outcome, 'verified');
+            await client.evaluate(`(async () => {
+                const reliability = document.querySelector('#reliability');
+                reliability.value = 'H'; reliability.dispatchEvent(new Event('change', { bubbles: true }));
+                const type = document.querySelector('#center-type');
+                type.value = 'image'; type.dispatchEvent(new Event('change', { bubbles: true }));
+                const canvas = document.createElement('canvas'); canvas.width = canvas.height = 32;
+                const ctx = canvas.getContext('2d'); ctx.fillStyle = '#FFFFFF'; ctx.fillRect(0, 0, 32, 32);
+                ctx.fillStyle = '#2563EB'; ctx.fillRect(10, 10, 12, 12);
+                const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+                const file = new File([blob, ${JSON.stringify(canaries[2])}], ${JSON.stringify(canaries[3] + '.png')}, { type: 'image/png' });
+                window.__privateImage44 = await new Promise(resolve => { const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.readAsDataURL(file); });
+                const transfer = new DataTransfer(); transfer.items.add(file);
+                const image = document.querySelector('#center-image'); image.files = transfer.files;
+                image.dispatchEvent(new Event('change', { bubbles: true }));
+            })()`);
+            await waitFor(client, `document.querySelector('#verification-status').dataset.state === 'verified'`);
+            await waitForRequest(() => count('qr_generation_completed') === 2);
+            assert.equal(events().filter(event => event.event === 'qr_generation_completed')[1].properties.center_type, 'image');
+            await client.evaluate(`(() => {
+                const text = document.querySelector('#center-text'); text.value = ${JSON.stringify(canaries[1])};
+                const type = document.querySelector('#center-type'); type.value = 'text'; type.dispatchEvent(new Event('change', { bubbles: true }));
+            })()`);
+            await waitFor(client, `document.querySelector('#verification-status').dataset.state === 'verified'`);
+            await waitForRequest(() => count('qr_generation_completed') === 3);
+            await exportAndReset();
+            await waitForRequest(() => count('qr_exported') === 2 && count('generator_reset') === 1);
+            assert.deepEqual(events().filter(event => event.event === 'qr_exported').map(event => event.properties.method), ['copy', 'download']);
+            await client.evaluate(`(() => { document.addEventListener('click', event => event.preventDefault(), { once: true }); document.querySelector('[data-analytics-source="generator_cta"]').click(); })()`);
+            await waitForRequest(() => count('app_store_clicked') === 1);
+            assert.equal(events().find(event => event.event === 'app_store_clicked').properties.source, 'generator_cta');
+            await client.evaluate(`window.QRCodeStyling = function() { throw new Error(${JSON.stringify(canaries[7])}); };`);
+            await type(canaries[0] + '_failure');
+            await waitForRequest(() => events().some(event => event.properties.outcome === 'render_failed'));
+            assert.equal(count('generator_viewed'), 1);
+            assert.equal(count('generator_started'), 1);
+            const serialized = JSON.stringify(requests);
+            assert.equal(await client.evaluate(`${JSON.stringify(serialized)}.includes(window.__privateImage44)`), false);
+            assert.deepEqual(await client.evaluate(`({ cookies: document.cookie, local: Object.keys(localStorage), session: Object.keys(sessionStorage) })`), { cookies: '', local: [], session: [] });
+            await waitForRequest(() => cloudflareRequests.some(request => request.method === 'POST'));
+            await audit();
+        });
+
+        await context.test('private referrer paths and queries suppress Cloudflare without affecting product events', async () => {
+            for (const referrer of [`${site.origin}/${canaries[6]}`, `${site.origin}/?secret=${canaries[6]}`, `https://example.com/${canaries[6]}`]) {
+                await load(referrer);
+                await type(canaries[0]);
+                await waitForRequest(() => count('qr_generation_completed') >= 1);
+                await exportAndReset();
+                await waitForRequest(() => count('qr_exported') === 2);
+                assert.deepEqual(cloudflareRequests, [], 'Unsafe referrer must prevent loading the external beacon itself');
+                await audit();
+            }
+        });
+
+        await context.test('the deployed Cloudflare loader sends no production baseline from localhost', async () => {
+            mode = 'local baseline disabled';
+            await load();
+            await type(canaries[0]);
+            await waitForRequest(() => count('qr_generation_completed') >= 1);
+            await exportAndReset();
+            assert.deepEqual(cloudflareRequests, []);
+            await audit();
+            mode = 'allowed';
+        });
+
+        for (mode of ['production disabled', 'Generator module blocked', 'properties module blocked', 'wrapper blocked', 'SDK blocked', 'capture throws', 'capture rejects', 'endpoint blocked', 'timeout', 'HTTP 4xx', 'HTTP 5xx', 'offline', 'DNT', 'GPC']) {
+            await context.test(`Generator remains usable with ${mode}`, async () => {
+                await load();
+                await type(canaries[0]);
+                await waitFor(client, `document.querySelector('#verification-status').dataset.state === 'verified'`);
+                const sends = ['endpoint blocked', 'timeout', 'HTTP 4xx', 'HTTP 5xx'].includes(mode);
+                if (sends) await waitForRequest(() => count('qr_generation_completed') >= 1);
+                await exportAndReset();
+                if (sends) await waitForRequest(() => count('qr_exported') >= 2 && count('generator_reset') >= 1);
+                if (['Generator module blocked', 'properties module blocked'].includes(mode)) {
+                    await waitForRequest(() => count('site_page_viewed') >= 1);
+                    assert.equal(count('generator_viewed'), 0);
+                    assert.equal(count('qr_exported'), 0);
+                } else if (!sends) assert.equal(requests.length, 0);
+                await waitForRequest(() => cloudflareRequests.some(request => request.method === 'POST'));
+                await audit();
+            });
+        }
+        await Promise.all([...pending]);
+        assert.deepEqual(errors, []);
+        context.diagnostic('Real SDK with fake sandbox config/token; every external request intercepted. UI success is checked independently of ingestion failures. Clipboard stubbed; downloads initiated and denied.');
+    } finally {
+        await cleanupTestResources({ client, browser, site });
+    }
+});
+
+
+test("returning browsers with cached legacy analytics still send schema-v2 quality events", { timeout: 30_000 }, async () => {
+    let site;
+    let browser;
+    let client;
+    const version = '?v=20261005a';
+    const token = 'phc_QRSpellWarmCacheTestOnly';
+    const legacy = new Map([
+        ['/qr-code-generator/generator-event-properties.mjs', `
+            export function generationProperties(configuration, outcome, warningCount) {
+                if (![0, 1, 2, 3, 4].includes(warningCount)) return null;
+                return { outcome, warning_count: warningCount };
+            }
+            export function exportProperties() { return null; }
+        `],
+        ['/assets/analytics-schema.mjs', `export const analyticsSchema = ${readFileSync(resolve(root, 'docs/analytics/event-schema-v1.json'), 'utf8')};`],
+        ['/assets/analytics-config.mjs', `export const analyticsConfig = { enabled: false, environment: 'production', token: '' };`],
+    ]);
+    const hits = new Map();
+    const requests = [];
+    const moduleUrls = [];
+    const pending = new Set();
+    const errors = [];
+    const events = () => requests.flatMap(request => JSON.parse(request.postData).batch);
+    const quality = () => events().filter(event => event.event === 'qr_generation_completed');
+    try {
+        site = await startStaticServer({ respond(request, response) {
+            const url = new URL(request.url, 'http://localhost');
+            const key = url.pathname + url.search;
+            if (key === '/cache-prime.html') {
+                response.writeHead(200, { 'Content-Type': 'text/html' });
+                response.end('<!doctype html><title>Legacy cache fixture</title>');
+                return true;
+            }
+            if (legacy.has(key)) {
+                hits.set(key, (hits.get(key) || 0) + 1);
+                response.writeHead(200, { 'Content-Type': 'text/javascript', 'Cache-Control': 'public, max-age=31536000, immutable' });
+                response.end(legacy.get(key));
+                return true;
+            }
+            if (key === '/assets/analytics-config.mjs' + version) {
+                response.writeHead(200, { 'Content-Type': 'text/javascript', 'Cache-Control': 'no-store' });
+                response.end(`export const analyticsConfig = { enabled: true, environment: 'sandbox', token: '${token}' };`);
+                return true;
+            }
+            return false;
+        } });
+        browser = await startBrowser();
+        const target = await createTarget(browser.debugOrigin, 'about:blank');
+        client = await CdpClient.connect(target.webSocketDebuggerUrl);
+        await client.send('Page.enable');
+        await client.send('Network.enable', { maxPostDataSize: 2_000_000 });
+        await client.send('Network.setUserAgentOverride', { userAgent: (await client.evaluate('navigator.userAgent')).replace('HeadlessChrome', 'Chrome') });
+        await client.send('Page.addScriptToEvaluateOnNewDocument', { source: "Object.defineProperty(navigator, 'webdriver', { value: false });" });
+        client.on('Network.requestWillBeSent', ({ request }) => {
+            const url = new URL(request.url);
+            if (url.origin === site.origin && url.pathname.endsWith('.mjs')) moduleUrls.push(url.pathname + url.search);
+            if (url.origin === 'https://eu.i.posthog.com' && request.method === 'POST') requests.push(request);
+        });
+        // Intercept only external traffic, leaving local HTTP caching enabled.
+        client.on('Fetch.requestPaused', ({ requestId, request }) => {
+            const operation = (async () => {
+                if (new URL(request.url).origin !== 'https://eu.i.posthog.com') {
+                    return client.send('Fetch.failRequest', { requestId, errorReason: 'BlockedByClient' });
+                }
+                return client.send('Fetch.fulfillRequest', {
+                    requestId, responseCode: 200,
+                    responseHeaders: [
+                        { name: 'Content-Type', value: 'application/json' },
+                        { name: 'Access-Control-Allow-Origin', value: site.origin },
+                        { name: 'Access-Control-Allow-Methods', value: 'POST, OPTIONS' },
+                        { name: 'Access-Control-Allow-Headers', value: 'content-type' },
+                    ], body: Buffer.from('{"status":1}').toString('base64'),
+                });
+            })().catch(error => errors.push(error)).finally(() => pending.delete(operation));
+            pending.add(operation);
+        });
+        await client.send('Fetch.enable', { patterns: [{ urlPattern: 'https://*' }] });
+        await client.send('Page.navigate', { url: site.origin + '/cache-prime.html' });
+        await waitFor(client, "document.title === 'Legacy cache fixture' && document.readyState === 'complete'");
+        for (const path of legacy.keys()) {
+            await client.evaluate(`(async () => {
+                await (await fetch(${JSON.stringify(path)})).text();
+                await (await fetch(${JSON.stringify(path)}, { cache: 'force-cache' })).text();
+            })()`);
+            assert.equal(hits.get(path), 1, `Legacy ${path} must really be in HTTP cache`);
+        }
+        assert.equal(await client.evaluate(`(async () => {
+            const { generationProperties } = await import('/qr-code-generator/generator-event-properties.mjs');
+            return generationProperties({}, 'verified', { warning_count: 0 }) === null
+                && generationProperties({}, 'verified', 0).warning_count === 0;
+        })()`), true, 'The legacy numeric API reproduces the dropped summary-object event');
+        moduleUrls.length = 0;
+        await navigate(client, site.origin + '/qr-code-generator/');
+        await waitForRequest(() => moduleUrls.includes('/qr-code-generator/generator-event-properties.mjs' + version));
+        for (const path of legacy.keys()) assert.ok(!moduleUrls.includes(path), `Current graph must bypass cached ${path}`);
+        await client.evaluate(`(() => {
+            const input = document.querySelector('#qr-content');
+            input.value = 'WARM_CACHE_PRIVATE_CONTENT';
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+        })()`);
+        await waitForRequest(() => quality().length === 1);
+        assert.equal(quality()[0].properties.outcome, 'verified');
+        assert.equal(quality()[0].properties.warning_count, 0);
+        await client.evaluate(`(() => {
+            for (const [id, value] of [['foreground-color', '#777777'], ['background-color', '#666666']]) {
+                const input = document.getElementById(id); input.value = value;
+                input.dispatchEvent(new Event('input', { bubbles: true }));
+                input.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+        })()`);
+        await waitForRequest(() => quality().length === 2);
+        assert.equal(quality()[1].properties.warning_count, 2);
+        assert.equal(quality()[1].properties.warning_inverted_modules, true);
+        assert.equal(quality()[1].properties.warning_low_contrast, true);
+        for (const event of quality()) {
+            assert.equal(event.properties.analytics_schema_version, 2);
+            assert.equal(event.properties.environment, 'sandbox');
+        }
+        for (const name of ['site_page_viewed', 'generator_viewed', 'generator_started']) {
+            assert.equal(events().filter(event => event.event === name).length, 1, `One shared lifecycle for ${name}`);
+        }
+        assert.ok(!JSON.stringify(requests).includes('WARM_CACHE_PRIVATE_CONTENT'));
+        assert.ok(requests.every(request => JSON.parse(request.postData).api_key === token));
+        await Promise.all([...pending]);
+        assert.deepEqual(errors, []);
+    } finally {
+        await cleanupTestResources({ client, browser, site });
+    }
+});

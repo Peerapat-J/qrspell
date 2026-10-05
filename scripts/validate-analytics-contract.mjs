@@ -1,0 +1,180 @@
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const root = join(dirname(fileURLToPath(import.meta.url)), "..");
+const schemaPath = join(root, "docs/analytics/event-schema-v2.json");
+
+export function loadAnalyticsContract() {
+    return JSON.parse(readFileSync(schemaPath, "utf8"));
+}
+
+export function validateAnalyticsContract(contract) {
+    const errors = [];
+    const transportProperties = contract.provider_transport_property_allowlist;
+    const forbiddenProperties = contract.forbidden_property_names;
+    const forbiddenNames = new Set(Array.isArray(forbiddenProperties) ? forbiddenProperties : []);
+
+    const attribution = contract.campaign_attribution;
+    const approvedKeys = ["utm_source", "utm_medium", "utm_campaign"];
+    if (!isPlainObject(attribution)
+        || JSON.stringify(attribution.utm_keys) !== JSON.stringify(approvedKeys)
+        || attribution.max_query_length !== 2048 || attribution.max_value_length !== 64
+        || attribution.referrer !== "disabled" || attribution.persistence !== "none") {
+        errors.push("Campaign attribution must use the approved bounded, non-persistent UTM policy.");
+    }
+    for (const definition of Object.values(contract.events ?? {})) {
+        if (!isPlainObject(definition)) continue;
+        for (const [key, rule] of Object.entries(definition.properties ?? {})) {
+            if (!key.startsWith("utm_")) continue;
+            if (!approvedKeys.includes(key) || !Array.isArray(rule?.enum) || rule.enum.length === 0
+                || rule.enum.some(value => typeof value !== "string" || !/^[a-z0-9][a-z0-9_-]{0,63}$/u.test(value))) {
+                errors.push(`${key} must use approved campaign names in a closed normalized enum.`);
+            }
+        }
+    }
+
+    if (contract.schema_version !== 2) errors.push("schema_version must be 2.");
+    const warningNames = ["warning_inverted_modules", "warning_low_contrast", "warning_dense_content", "warning_weak_center_reliability"];
+    const qualityEvent = contract.events?.qr_generation_completed;
+    for (const name of warningNames) {
+        const rule = qualityEvent?.properties?.[name];
+        if (!qualityEvent?.required?.includes(name) || JSON.stringify(rule?.enum) !== JSON.stringify([false, true])) {
+            errors.push(`qr_generation_completed.${name} must be required and boolean.`);
+        }
+    }
+    if (!Array.isArray(transportProperties) || transportProperties.length === 0) {
+        errors.push("provider_transport_property_allowlist must be a non-empty array.");
+    } else if (new Set(transportProperties).size !== transportProperties.length) {
+        errors.push("provider_transport_property_allowlist contains duplicates.");
+    }
+    if (!Array.isArray(forbiddenProperties) || forbiddenProperties.length === 0) {
+        errors.push("forbidden_property_names must be a non-empty array.");
+    } else if (new Set(forbiddenProperties).size !== forbiddenProperties.length) {
+        errors.push("forbidden_property_names contains duplicates.");
+    }
+
+    if (!isPlainObject(contract.events) || Object.keys(contract.events).length === 0) {
+        errors.push("events must be a non-empty object.");
+    } else {
+        for (const [eventName, definition] of Object.entries(contract.events)) {
+            if (!isPlainObject(definition.properties)) {
+                errors.push(`${eventName} properties must be an object.`);
+                continue;
+            }
+            for (const [propertyName, rule] of Object.entries(definition.properties)) {
+                if (forbiddenNames.has(propertyName)) {
+                    errors.push(`${eventName} defines forbidden property ${propertyName}.`);
+                }
+                if (!isBoundedRule(rule)) {
+                    errors.push(`${eventName}.${propertyName} must define exactly one scalar const or non-empty scalar enum.`);
+                }
+            }
+            if (!Array.isArray(definition.required)) {
+                errors.push(`${eventName} required must be an array.`);
+            } else {
+                if (new Set(definition.required).size !== definition.required.length) {
+                    errors.push(`${eventName} required contains duplicates.`);
+                }
+                for (const requiredName of definition.required) {
+                    if (typeof requiredName !== "string" || requiredName.length === 0) {
+                        errors.push(`${eventName} required entries must be non-empty strings.`);
+                    } else if (!Object.hasOwn(definition.properties, requiredName)) {
+                        errors.push(`${eventName} requires undefined property ${requiredName}.`);
+                    }
+                    if (approvedKeys.includes(requiredName)) {
+                        errors.push(`${eventName}.${requiredName} must remain optional.`);
+                    }
+                }
+            }
+        }
+    }
+
+    return { ok: errors.length === 0, errors };
+}
+
+export function validateAnalyticsEvent(eventName, properties) {
+    const contract = loadAnalyticsContract();
+
+    if (!isPlainObject(contract.events) || !Object.hasOwn(contract.events, eventName)) {
+        return { ok: false, errors: [`Unknown event: ${eventName}`] };
+    }
+    const definition = contract.events[eventName];
+
+    if (!isPlainObject(properties)) {
+        return { ok: false, errors: ["Event properties must be a plain object."] };
+    }
+
+    if (!Array.isArray(definition.required)) {
+        return { ok: false, errors: [`${eventName} required must be an array.`] };
+    }
+
+    const errors = [];
+    const allowedNames = new Set(Object.keys(definition.properties));
+    const forbiddenNames = new Set(contract.forbidden_property_names);
+
+    for (const requiredName of definition.required) {
+        if (!Object.hasOwn(properties, requiredName)) {
+            errors.push(`Missing required property: ${requiredName}`);
+        }
+    }
+
+    for (const [name, value] of Object.entries(properties)) {
+        if (!allowedNames.has(name) || forbiddenNames.has(name)) {
+            errors.push(`Unknown or forbidden property: ${name}`);
+            continue;
+        }
+
+        if (!isScalar(value)) {
+            errors.push(`Property ${name} must be a scalar value.`);
+            continue;
+        }
+
+        const rule = definition.properties[name];
+        if (Object.hasOwn(rule, "const") && value !== rule.const) {
+            errors.push(`Property ${name} must equal ${JSON.stringify(rule.const)}.`);
+        }
+        if (rule.enum && !rule.enum.includes(value)) {
+            errors.push(`Property ${name} has an unapproved value.`);
+        }
+    }
+
+    return { ok: errors.length === 0, errors };
+}
+
+function isPlainObject(value) {
+    if (value === null || typeof value !== "object") return false;
+    const prototype = Object.getPrototypeOf(value);
+    return prototype === Object.prototype || prototype === null;
+}
+
+function isScalar(value) {
+    return typeof value === "string"
+        || typeof value === "number"
+        || typeof value === "boolean";
+}
+
+function isBoundedRule(rule) {
+    if (!isPlainObject(rule)) return false;
+    const hasConst = Object.hasOwn(rule, "const");
+    const hasEnum = Object.hasOwn(rule, "enum");
+    if (hasConst === hasEnum) return false;
+    if (hasConst) return isScalar(rule.const);
+    return Array.isArray(rule.enum)
+        && rule.enum.length > 0
+        && rule.enum.every(isScalar)
+        && new Set(rule.enum).size === rule.enum.length;
+}
+
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+    const contract = loadAnalyticsContract();
+    const names = Object.keys(contract.events);
+    const result = validateAnalyticsContract(contract);
+
+    if (!result.ok) {
+        console.error(`Analytics contract is invalid:\n${result.errors.join("\n")}`);
+        process.exit(1);
+    }
+
+    console.log(`Analytics contract v${contract.schema_version} is valid (${names.length} events).`);
+}

@@ -1,0 +1,135 @@
+# Analytics foundation (#42)
+
+Production tracking is enabled on the feature branch in
+`assets/analytics-config.mjs` following owner approval on 2026-10-05. The static
+validator checks the approved configuration and exact reviewed EU public token;
+disabled/tokenless remains a supported rollback. Deployment and live receipt
+are tracked in [production-rollout.md](production-rollout.md). The foundation
+itself adds no event call sites. Website instrumentation is
+documented in [website-events.md](website-events.md) (#43); Generator action
+events are documented in [generator-events.md](generator-events.md) (#44). The
+#45 manual results and provider decision are recorded in the rollout evidence.
+Do not infer production provider delivery from enabling the local config.
+
+## API
+
+```js
+import { captureEvent } from "../../assets/analytics.mjs";
+captureEvent("site_page_viewed", { route: "generator" });
+```
+
+`initAnalytics()` resolves to a readiness boolean and never rejects.
+`captureEvent()` returns whether the wrapper locally accepted the event;
+it does not report delivery, clipboard success, or download completion.
+Schema version and environment are owned by the wrapper and cannot be
+overridden by callers. Events before readiness are dropped; there is no
+event buffer or persistent retry queue in the wrapper.
+
+`disableAnalytics()` disables the instance for the remainder of the page,
+including its provider before-send hook. It does not persist an opt-out.
+The v1 opt-out policy remains DNT/GPC, with no new storage or opt-out UI.
+
+The optional bootstrap is a separate HTML module and dynamically imports
+the wrapper. The provider adapter dynamically imports the pinned slim
+no-external PostHog ESM build only after initialization is permitted.
+Generator startup never waits for either import or analytics readiness.
+Initialization has a three-second timeout; a late provider cannot re-enable
+an instance after that timeout.
+
+## Runtime gates and data handling
+
+- Production requires the exact `https://qrspell.app` origin and declines
+  webdriver contexts. Localhost, other ports, previews, and file URLs are
+  disabled even if an enabled production config is accidentally supplied.
+- Explicit sandbox instances are confined to localhost/loopback and emit
+  `environment = sandbox`. Automated browser tests use a fake public token
+  and intercept every external request; no real provider token is needed.
+- DNT/GPC and offline state are checked before initialization and capture.
+- No analytics cookies, localStorage, or sessionStorage are used. The SDK
+  uses cookieless mode, memory persistence, and disabled persistence.
+- `event-schema-v2.json` is the source of truth. Regenerate its deeply frozen
+  browser module with `node scripts/generate-analytics-schema.mjs`; CI checks
+  it with `--check`.
+- Unknown event names, properties, missing required fields, or unapproved
+  values reject the entire event. Property getters, symbol keys, structured
+  values, and inherited properties are not accepted.
+- Before send, provider enrichment is discarded and transport fields are
+  rebuilt with the cookieless marker, no person processing, exact SDK version,
+  expected project token, and `$geoip_disable: true`.
+- Requests are unbatched and uncompressed so their final envelopes can be
+  inspected. SDK network errors remain optional and are not user-facing.
+- Generator CSP retains the exact Cloudflare script/ingest permissions and
+  adds only `https://eu.i.posthog.com` to `connect-src`. The SDK stays local;
+  no PostHog script origin, wildcard, or unsafe-eval is allowed.
+- The same connection/script restrictions cover every public HTML page.
+  Cloudflare uses a separate guarded local loader; unsafe incoming referrers,
+  non-production origins and webdriver contexts prevent its external script
+  from loading. See [cloudflare-baseline.md](cloudflare-baseline.md).
+
+## Automated verification
+
+```sh
+node scripts/generate-analytics-schema.mjs --check
+node --test scripts/*.test.mjs
+node scripts/validate-static-site.mjs
+```
+
+The foundation browser test uses the real pinned SDK and intercepts all
+external traffic. It audits final event bodies and storage, and checks
+Generator Verify, Copy, Download, and Reset with SDK/wrapper load failures,
+blocked ingestion, timeout, HTTP 400/503, offline signal, DNT, and GPC.
+Copy uses a clipboard stub; browser downloads are initiated and denied by
+the test harness. Physical clipboard/disk and tracker-blocker QA remain manual.
+
+The content/image/referrer/error canary matrix, site-wide CSP, guarded Cloudflare
+loader and internal provider/data-handling record are covered in the
+[#45 verification record](issue-45-validation.md). That record includes current
+automated results and the remaining manual release gates. The public Privacy
+Policy covers the macOS app.
+
+## Manual checklist
+
+
+For manual non-production validation on localhost, initialize an explicit instance
+in DevTools using the selected EU project's public `phc_` token (never a
+personal API key). The shared-project rollout uses `environment = sandbox` for
+local tests and excludes those events from production insights:
+
+```js
+const { createAnalytics } = await import("/assets/analytics.mjs");
+const sandbox = createAnalytics({
+    config: { enabled: true, environment: "sandbox", token: "phc_REPLACE_WITH_SANDBOX_PROJECT_TOKEN" },
+});
+await sandbox.initAnalytics();
+sandbox.captureEvent("site_page_viewed", { route: "generator" });
+sandbox.captureEvent("generator_viewed");
+// Disable for the remainder of this page when finished.
+sandbox.disableAnalytics();
+```
+
+1. Serve the checkout on localhost and open Generator. In Network, confirm
+   production boot loads no PostHog SDK or ingestion request. Generate a QR,
+   verify it, copy/paste its PNG, download/open its PNG, and reset.
+2. Use the selected EU project only through an explicit local sandbox instance
+   for this test; the API above sends `environment = sandbox`. Confirm no event
+   is sent merely by initialization; send approved test events and inspect their
+   complete requests and raw events.
+   Check the cookieless marker, no person processing, no GeoIP enrichment,
+   and empty local-origin analytics cookie/localStorage/sessionStorage.
+3. Block the SDK or EU ingestion host in DevTools, then repeat Generator
+   actions. Repeat with offline, timeout, HTTP errors, and a tracker blocker.
+4. Turn on DNT/GPC before initializing a sandbox instance. Confirm the SDK
+   is not loaded and no event is sent. Check keyboard controls and navigation.
+5. Record manual results separately. Do not insert a production token or
+   enable public tracking as part of this checklist.
+
+## Verification record — 2026-09-28
+
+- Automated: all 124 tests passed, including the real pinned SDK network/storage
+  audit and the existing Generator browser suite; no tests were skipped.
+- Generated schema check and static-site validation passed.
+- Browser test processes were closed after each run.
+- Manual tracker-blocker, physical clipboard, disk-save, and raw EU project
+  verification remain pending; automated interception does not prove delivery
+  to the production provider.
+- Production tracking remains disabled with an empty token.

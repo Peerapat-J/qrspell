@@ -3,23 +3,26 @@
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
-        <title>QRSpell Privacy Policy</title>
-        <meta name="description" content="How QRSpell handles local QR scanning, History, optional URL previews, and support purchases.">
+        <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://static.cloudflareinsights.com/beacon.min.js; style-src 'self'; img-src 'self'; connect-src https://cloudflareinsights.com/cdn-cgi/rum https://eu.i.posthog.com; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'; media-src 'none'">
+        <meta name="referrer" content="no-referrer">
+        <title>QRSpell App Privacy Policy</title>
+        <meta name="description" content="How the QRSpell macOS app handles QR scanning, History, optional URL previews, and support purchases.">
         <link rel="canonical" href="https://qrspell.app/privacy/">
         <meta property="og:type" content="website">
         <meta property="og:url" content="https://qrspell.app/privacy/">
-        <meta property="og:title" content="QRSpell Privacy Policy">
-        <meta property="og:description" content="How QRSpell handles local QR scanning, History, optional URL previews, and support purchases.">
+        <meta property="og:title" content="QRSpell App Privacy Policy">
+        <meta property="og:description" content="How the QRSpell macOS app handles QR scanning, History, optional URL previews, and support purchases.">
         <meta property="og:image" content="https://qrspell.app/assets/qrspell-app-icon.png">
         <meta name="twitter:card" content="summary">
-        <meta name="twitter:title" content="QRSpell Privacy Policy">
-        <meta name="twitter:description" content="How QRSpell handles local QR scanning, History, optional URL previews, and support purchases.">
+        <meta name="twitter:title" content="QRSpell App Privacy Policy">
+        <meta name="twitter:description" content="How the QRSpell macOS app handles QR scanning, History, optional URL previews, and support purchases.">
         <meta name="twitter:image" content="https://qrspell.app/assets/qrspell-app-icon.png">
         <link rel="icon" type="image/png" href="../assets/qrspell-app-icon.png">
         <link rel="apple-touch-icon" href="../assets/qrspell-app-icon.png">
         <link rel="stylesheet" href="../styles.css?v=20260821b">
+        <script type="module" src="../assets/analytics-bootstrap.mjs?v=20261005a"></script>
     </head>
-    <body>
+    <body data-analytics-route="privacy">
         <div class="page-shell">
             <header class="page-header">
                 <a class="brand" href="../" aria-label="QRSpell home">
@@ -28,7 +31,7 @@
                 </a>
                 <nav class="nav-links" aria-label="Main navigation">
                     <a href="../qr-code-generator/">QR Generator</a>
-                    <a href="https://apps.apple.com/app/id6771453521" target="_blank" rel="noopener noreferrer">Download</a>
+                    <a data-analytics-source="header" href="https://apps.apple.com/app/id6771453521" target="_blank" rel="noopener noreferrer">Download</a>
                     <a href="../changelog/">Changelog</a>
                     <a href="../privacy/" aria-current="page">Privacy</a>
                     <a href="https://www.apple.com/legal/internet-services/itunes/dev/stdeula/" target="_blank" rel="noopener noreferrer">Terms of Service</a>
@@ -38,12 +41,13 @@
 
             <main>
                 <section class="page-hero" aria-labelledby="privacy-title">
-                    <h1 id="privacy-title">Privacy Policy</h1>
-                    <p>Last updated: September 3, 2026</p>
+                    <h1 id="privacy-title">QRSpell App Privacy Policy</h1>
+                    <p>This policy covers the QRSpell macOS app.</p>
+                    <p>Last updated: September 29, 2026</p>
                 </section>
 
                 <section class="content-section">
-                    <h2>In the App</h2>
+                    <h2>QRSpell for macOS</h2>
                     <p>
                         QRSpell scans and creates QR codes on your Mac. The app does not send your screen captures
                         or scan History to the developer and does not include ads, analytics, or tracking.
@@ -86,8 +90,8 @@
 
                     <h2>Changes</h2>
                     <p>
-                        This policy may be updated when QRSpell changes its features or data practices. The latest
-                        version will be published on this page.
+                        This policy may be updated when the QRSpell macOS app changes its features or data practices.
+                        The latest version will be published on this page.
                     </p>
                 </section>
             </main>
@@ -96,7 +100,7 @@
                 <p>&copy; 2026 Peerapat Jardrit. All rights reserved.</p>
                 <nav aria-label="Footer navigation">
                     <a href="../qr-code-generator/">QR Generator</a>
-                    <a href="https://apps.apple.com/app/id6771453521" target="_blank" rel="noopener noreferrer">Download</a>
+                    <a data-analytics-source="footer" href="https://apps.apple.com/app/id6771453521" target="_blank" rel="noopener noreferrer">Download</a>
                     <a href="../changelog/">Changelog</a>
                     <a href="https://www.apple.com/legal/internet-services/itunes/dev/stdeula/" target="_blank" rel="noopener noreferrer">Terms of Service</a>
                     <a href="../Acknowledgements/">Open Source Licenses</a>
@@ -105,7 +109,7 @@
             </footer>
         </div>
         <!-- Cloudflare Web Analytics -->
-        <script defer src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token":"e43189ed6f5c43d29472b9b18c73b226"}'></script>
+        <script type="module" src="../assets/cloudflare-bootstrap.mjs?v=20260929a" data-cf-beacon='{"token":"e43189ed6f5c43d29472b9b18c73b226","spa":false}'></script>
         <!-- End Cloudflare Web Analytics -->
     </body>
 </html>

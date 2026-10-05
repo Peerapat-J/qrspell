@@ -7,9 +7,9 @@ import {
     hsvToHex,
     quietZoneMargin,
     readImageDimensions,
-    readabilityWarnings,
+    readabilityWarningDetails,
     truncateGraphemes,
-} from "./generator-core.mjs?v=20260920a";
+} from "./generator-core.mjs?v=20260930a";
 
 const elements = {
     form: document.querySelector(".generator-controls"),
@@ -57,6 +57,12 @@ let currentQr;
 let currentContent = "";
 let currentQrVerified = false;
 let currentVerifiedPngBlob;
+let currentVerifiedAnalyticsConfiguration;
+let generatorAnalytics;
+let analyticsRevision = 0;
+let generatorEverStarted = false;
+let latestAnalyticsResult;
+let centerImageAttempt = "";
 let centerImageDataUrl = "";
 let centerImageLoadID = 0;
 let centerImageValidationFailed = false;
@@ -67,8 +73,59 @@ const maximumCenterImageDimension = 4096;
 const maximumCenterImagePixels = 4096 * 4096;
 const centerImageDimensionError = "Choose an image no larger than 4096 × 4096 px (16.8 MP).";
 const maximumDisplayedCharacterCount = 5596;
+const noWarnings = Object.freeze({
+    warning_count: 0,
+    warning_inverted_modules: false,
+    warning_low_contrast: false,
+    warning_dense_content: false,
+    warning_weak_center_reliability: false,
+});
 const customSelectInstances = [];
 const customColorInstances = [];
+
+// A failed analytics import must never prevent controls or rendering from starting.
+import("./generator-analytics.mjs?v=20261005a").then(({ createGeneratorAnalytics }) => {
+    generatorAnalytics = createGeneratorAnalytics();
+    trackGenerator("changed", analyticsRevision, localAnalyticsConfiguration());
+    if (generatorEverStarted) trackGenerator("started");
+    if (latestAnalyticsResult?.revision === analyticsRevision) {
+        trackGenerator("completed", analyticsRevision, latestAnalyticsResult.outcome, latestAnalyticsResult.warningSummary);
+    }
+}).catch(() => {});
+
+function trackGenerator(method, ...args) {
+    try { generatorAnalytics?.[method](...args); } catch { /* Analytics is optional. */ }
+}
+
+function localAnalyticsConfiguration() {
+    return {
+        content: elements.content.value,
+        moduleShape: elements.moduleShape.value,
+        finderShape: elements.finderShape.value,
+        foreground: elements.foreground.value,
+        background: elements.background.value,
+        exportSize: elements.exportSize.value,
+        reliability: elements.reliability.value,
+        centerType: elements.centerType.value,
+        centerSize: elements.centerSize.value,
+        centerText: elements.centerText.value,
+        centerImage: centerImageDataUrl || centerImageAttempt,
+    };
+}
+
+function noteGeneratorChange() {
+    analyticsRevision += 1;
+    latestAnalyticsResult = undefined;
+    const configuration = localAnalyticsConfiguration();
+    if (configuration.content) generatorEverStarted = true;
+    trackGenerator("changed", analyticsRevision, configuration);
+}
+
+function noteGeneratorOutcome(revision, outcome, warningSummary) {
+    if (revision !== analyticsRevision) return;
+    latestAnalyticsResult = { revision, outcome, warningSummary };
+    trackGenerator("completed", revision, outcome, warningSummary);
+}
 
 if (!window.QRCodeStyling || !window.jsQR) {
     setStatus("error", "The QR generator could not load. Refresh the page and try again.");
@@ -619,6 +676,7 @@ function handleCustomOptionKeydown(event, instance) {
 }
 
 function scheduleRender() {
+    noteGeneratorChange();
     window.clearTimeout(renderTimer);
     renderID += 1;
     disableExport();
@@ -629,6 +687,7 @@ function scheduleRender() {
     }
 
     if (elements.centerType.value === "image" && centerImageValidationFailed) {
+        noteGeneratorOutcome(analyticsRevision, "center_image_rejected", noWarnings);
         return;
     }
 
@@ -646,6 +705,12 @@ async function renderQr() {
     currentContent = content;
     renderID += 1;
     const activeRenderID = renderID;
+    const activeAnalyticsRevision = analyticsRevision;
+    const exportConfiguration = {
+        moduleShape: elements.moduleShape.value, finderShape: elements.finderShape.value,
+        exportSize: elements.exportSize.value, reliability: elements.reliability.value,
+        centerType: elements.centerType.value,
+    };
 
     if (!content) {
         renderEmptyState();
@@ -661,9 +726,10 @@ async function renderQr() {
         elements.warnings.hidden = true;
         disableExport();
         setStatus("error", "This content is too long for a QR code. Shorten it and try again.");
+        noteGeneratorOutcome(activeAnalyticsRevision, "capacity_rejected", noWarnings);
         return;
     }
-    renderWarnings(settings);
+    const warningSummary = renderWarnings(settings);
     setStatus("checking", "Checking QR data…");
     disableExport();
 
@@ -690,15 +756,19 @@ async function renderQr() {
 
         if (decoded === content) {
             currentVerifiedPngBlob = blob;
+            currentVerifiedAnalyticsConfiguration = exportConfiguration;
             currentQrVerified = true;
             enableExport();
             setStatus("verified", "QR data verified");
+            noteGeneratorOutcome(activeAnalyticsRevision, "verified", warningSummary);
         } else if (decoded) {
             disableExport();
             setStatus("error", "The decoded QR data does not match your content.");
+            noteGeneratorOutcome(activeAnalyticsRevision, "decoded_mismatch", warningSummary);
         } else {
             disableExport();
             setStatus("warning", "This design could not be verified. Try stronger contrast or simpler styling.");
+            noteGeneratorOutcome(activeAnalyticsRevision, "decode_failed", warningSummary);
         }
     } catch (error) {
         if (activeRenderID !== renderID) {
@@ -710,6 +780,7 @@ async function renderQr() {
         elements.previewEmpty.hidden = false;
         disableExport();
         setStatus("error", readableError(error));
+        noteGeneratorOutcome(activeAnalyticsRevision, "render_failed", warningSummary);
     }
 }
 
@@ -825,15 +896,18 @@ function currentSettings(content) {
 }
 
 function renderWarnings(settings) {
-    const messages = readabilityWarnings(settings);
+    const warnings = readabilityWarningDetails(settings);
     elements.warnings.replaceChildren();
-    elements.warnings.hidden = messages.length === 0;
+    elements.warnings.hidden = warnings.length === 0;
 
-    for (const message of messages) {
+    const summary = { ...noWarnings, warning_count: warnings.length };
+    for (const warning of warnings) {
         const item = document.createElement("li");
-        item.textContent = message;
+        item.textContent = warning.message;
         elements.warnings.append(item);
+        summary[`warning_${warning.code}`] = true;
     }
+    return summary;
 }
 
 async function decodeQrBlob(blob) {
@@ -886,6 +960,8 @@ function loadBlobImage(blob) {
 async function loadCenterImage() {
     const [file] = elements.centerImage.files;
     const activeLoadID = ++centerImageLoadID;
+    // This attempted-image identity stays local, including when validation clears the file input.
+    centerImageAttempt = file ? JSON.stringify([file.name, file.size, file.lastModified, file.type]) : "";
     centerImageDataUrl = "";
     centerImageValidationFailed = false;
     elements.centerImageName.textContent = "No image selected";
@@ -1012,6 +1088,7 @@ function rejectCenterImage(message) {
     elements.centerImageError.hidden = false;
     invalidateRenderedQr();
     setStatus("error", message);
+    noteGeneratorOutcome(analyticsRevision, "center_image_rejected", noWarnings);
 }
 
 function clearCenterImageError() {
@@ -1020,6 +1097,7 @@ function clearCenterImageError() {
 }
 
 function invalidateRenderedQr() {
+    noteGeneratorChange();
     window.clearTimeout(renderTimer);
     renderID += 1;
     currentQr = undefined;
@@ -1046,11 +1124,14 @@ async function copyPng() {
 
     const activeRenderID = renderID;
     const blob = currentVerifiedPngBlob;
+    const exportConfiguration = currentVerifiedAnalyticsConfiguration;
     try {
         if (!navigator.clipboard?.write || !window.ClipboardItem) {
             throw new Error("Copying images is not supported in this browser. Download the PNG instead.");
         }
         await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
+        // The copied QR remains a successful export even if editing resumed while the clipboard was pending.
+        trackGenerator("exported", exportConfiguration, "copy");
         if (activeRenderID !== renderID || blob !== currentVerifiedPngBlob) {
             return;
         }
@@ -1070,12 +1151,14 @@ async function downloadPng() {
 
     const activeRenderID = renderID;
     const blob = currentVerifiedPngBlob;
+    const exportConfiguration = currentVerifiedAnalyticsConfiguration;
     try {
         const url = URL.createObjectURL(blob);
         const link = document.createElement("a");
         link.href = url;
         link.download = "QRSpell-QRCode.png";
         link.click();
+        trackGenerator("exported", exportConfiguration, "download");
         window.setTimeout(() => URL.revokeObjectURL(url), 1000);
         if (activeRenderID !== renderID || blob !== currentVerifiedPngBlob) {
             return;
@@ -1090,6 +1173,12 @@ async function downloadPng() {
 }
 
 function resetGenerator() {
+    const didChange = Boolean(elements.content.value || elements.centerText.value || centerImageDataUrl
+        || elements.centerImage.files.length || centerImageValidationFailed)
+        || Object.entries(defaultState).some(([name, value]) => {
+            const actual = elements[name].value;
+            return (["foreground", "background"].includes(name) ? actual.toUpperCase() : actual) !== value;
+        });
     centerImageLoadID += 1;
     elements.form.reset();
     elements.moduleShape.value = defaultState.moduleShape;
@@ -1106,9 +1195,12 @@ function resetGenerator() {
         instance.saturation = 0;
     }
     centerImageDataUrl = "";
+    centerImageAttempt = "";
     centerImageValidationFailed = false;
     elements.centerImageName.textContent = "No image selected";
     clearCenterImageError();
+    noteGeneratorChange();
+    trackGenerator("reset", didChange);
     updateCenterFields();
     updateColorValues();
     updateCharacterCount();
@@ -1166,6 +1258,7 @@ function enableExport() {
 function disableExport() {
     currentQrVerified = false;
     currentVerifiedPngBlob = undefined;
+    currentVerifiedAnalyticsConfiguration = undefined;
     elements.copyButton.disabled = true;
     elements.downloadButton.disabled = true;
 }
