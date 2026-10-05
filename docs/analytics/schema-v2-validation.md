@@ -130,6 +130,34 @@ the schema filter are excluded. **Pass for this breakdown:** v2 filtering and
 method counts match the two synthetic export events. This does not verify the
 ordered funnel, other property breakdowns or production reporting.
 
+## 2026-10-05: automated SDK, network and storage checks
+
+The following focused browser run passed **29 tests**, with no failures or
+skips, on the current schema-v2 branch:
+
+```sh
+node --test --test-name-pattern='privacy-safe PostHog foundation|Generator product events audit' scripts/qr-generator-browser.test.mjs
+```
+
+The run exercises the vendored PostHog SDK and actual Generator event call
+sites. It inspects the complete outbound batch body and approved property
+values, checks private canaries in URLs, headers and encoded request bodies,
+and checks that cookies, localStorage and sessionStorage are empty. It also
+covers blocked modules/SDK/endpoints, timeout, HTTP 4xx/5xx, offline, DNT and
+GPC while Generator actions remain usable.
+
+**Pass within the automated test environment:** schema-v2 SDK payload, storage
+and failure-handling checks. The tests use fake sandbox tokens and intercept
+all external requests. Clipboard writes are stubbed and downloads are initiated
+but denied. These results close the automated checks without proving live
+provider behavior, a real clipboard paste, a saved/opened file or a real tracker
+blocker.
+
+GitHub was checked on the same date: [#45](https://github.com/Peerapat-J/qrspell/issues/45)
+is closed and [PR #54](https://github.com/Peerapat-J/qrspell/pull/54) is merged.
+The implementation does not need to be repeated. That repository status alone
+is not evidence that the separate manual effects above were checked.
+
 ## Remaining provider and manual checks
 
 | Check | Status |
@@ -140,9 +168,9 @@ ordered funnel, other property breakdowns or production reporting.
 | Export method breakdown using sandbox and schema-v2 filters | Pass on 2026-10-05: copy and download each total 1 |
 | Ordered funnel and other property breakdowns using sandbox and schema-v2 filters | Pending; the saved funnel screenshot did not show a fresh computation |
 | Ingested properties contain only approved data | Pass for the four complete Raw records above; both quality cases inspected through Properties |
-| Final outbound HTTP body contains only approved data | Pending v2 network evidence |
-| Local-origin analytics cookies, localStorage and sessionStorage absent | Pending v2 evidence |
-| Real Generator browser, clipboard, disk and tracker-blocker checks from #45 | Pending |
+| Final outbound HTTP body contains only approved data | Pass in the automated v2 SDK/Generator tests; live production inspection remains part of the release canary |
+| Local-origin analytics cookies, localStorage and sessionStorage absent | Pass in the automated v2 browser tests; live production storage inspection remains part of the release canary |
+| Real Generator clipboard, disk and tracker-blocker checks | Separate manual evidence pending; #45 implementation is merged and automated failure checks pass |
 | Remaining project settings, retention and DPA review | Pending |
 | Production delivery, dashboard and canary checks | Pending reviewed release |
 

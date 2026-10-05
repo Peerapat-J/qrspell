@@ -8,6 +8,24 @@ is required by this rollout. Until the project review, schema-v2 validation and
 and `scripts/validate-static-site.mjs` keeps rejecting an enabled config.
 Do not put a Personal API key or Project secret key in this repository.
 
+## Release sequence
+
+Do not turn every evidence item below into a separate screenshot request.
+Reuse the recorded results and collect only missing project settings and manual
+effects in one pre-release session. The 2026-10-05 focused browser run passed
+29 tests for schema-v2 SDK payloads, storage and failure handling; see
+[schema-v2-validation.md](schema-v2-validation.md). Issue #45 is closed and its
+implementation in PR #54 is merged. Keep its remaining manual evidence
+separate from implementation status.
+
+Before enabling capture, finish the project/privacy review and real Generator
+clipboard/download/blocker checks, then prepare the production config and
+validator change in section 3. Production event inspection and dashboard
+verification in sections 4–5 require the release to be deployed; they are
+post-deployment checks, not additional prerequisites for preparing that change.
+The dated review follows the observation period. Issue #46 stays open until
+its dashboard and rollout evidence are complete.
+
 ## 1. Review the existing project
 
 Use the existing QRSpell EU project and its public `phc_` project token for both
@@ -123,7 +141,7 @@ in the activation funnel. Do not mix Cloudflare counts into these rates.
 | Project selection | Existing QRSpell EU project selected for sandbox and production on 2026-10-02; URL/ID in private release record |
 | Project settings and DPA review | Asia/Bangkok and cookieless enabled shown on 2026-10-02; Web vitals autocapture off shown on 2026-10-05; remaining settings and DPA review pending |
 | Schema-v2 sandbox provider check | Both quality cases received; export, Generator view and page view Raw records inspected on 2026-10-02; verified zero-warning Properties and v2 export method counts inspected on 2026-10-05; remaining checks in [schema-v2-validation.md](schema-v2-validation.md) |
-| #45 manual browser/clipboard/disk/blocker QA | Pending |
+| #45 implementation and manual effects | Issue closed and PR #54 merged; automated v2 SDK/network/storage/failure checks pass (29 tests, 2026-10-05); real clipboard/disk/blocker evidence remains pending |
 | Release commit and date/time | Pending |
 | Dashboard and insight URLs | Pending |
 | Production raw-event and canary results | Pending |
