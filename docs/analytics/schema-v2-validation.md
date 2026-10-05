@@ -60,8 +60,8 @@ The owner supplied the expanded Raw record for `qr_exported` with
 view and page view records. The Activity view showed seven entries in the test
 batch. Combined screenshots show all five harness event types, including
 `generator_started` and both `qr_generation_completed` entries. Complete
-properties for `generator_started` and the verified quality case remain
-uninspected.
+properties for `generator_started` and the verified quality case were not
+inspected at this stage; the latter is covered by the 2026-10-05 evidence below.
 
 | Record | Evidence | Observed result |
 | --- | --- | --- |
@@ -91,15 +91,55 @@ These observations do not prove the ordered funnel, browser storage state or
 the final outbound HTTP body. They also do not test a real clipboard write,
 disk download or production adapter; the harness emits synthetic events.
 
+## 2026-10-05: verified outcome and export breakdown inspected
+
+The owner supplied two expanded Activity Properties screenshots:
+`codex-clipboard-cb95525b-1114-4887-bb1e-5a5b50858adb.png` repeats the warning
+case above; `codex-clipboard-bb8cb9e9-2df2-4ad5-9866-c7a857dca74b.png` shows
+its no-warning counterpart from the same 2026-10-02 synthetic batch. The latter
+has **Sent at** `2026-10-01T17:41:09.792Z`.
+
+| Observed property | Verified case | Warning case |
+| --- | --- | --- |
+| `analytics_schema_version` | `2` (number) | `2` (number) |
+| `environment` | `sandbox` | `sandbox` |
+| `outcome` | `verified` | `decode_failed` |
+| `warning_count` | `0` (number) | `4` (number) |
+| `warning_dense_content` | `false` (boolean) | `true` (boolean) |
+| `warning_inverted_modules` | `false` (boolean) | `true` (boolean) |
+| `warning_low_contrast` | `false` (boolean) | `true` (boolean) |
+| `warning_weak_center_reliability` | `false` (boolean) | `true` (boolean) |
+
+Both displayed records retain GeoIP disabled, person profile processing false,
+the cookieless transport marker and SDK version `1.435.5`. The verified case
+has the same approved export settings described above. **Pass for these two
+cases:** the provider received the expected outcome, numeric count and four
+boolean flags, with the count matching the number of true categories. These
+Properties screenshots do not replace complete Raw or outbound network audits,
+and the synthetic verified event does not test the real QR verifier.
+
+The owner also supplied
+`codex-clipboard-dc3cf205-e3b3-4a97-8d40-958791e68570.png` for the saved insight
+**QRSpell sandbox — Export method breakdown**. The visible configuration is
+`qr_exported`, **Total count**, breakdown `method`, and a **Match all** group
+containing `environment = sandbox` AND `analytics_schema_version = 2`.
+The view was computed a few seconds earlier and displayed **No changes**.
+Within **Last 7 days**, both the detailed totals and the 2026-10-02 (UTC+7)
+tooltip show `copy = 1` and `download = 1`; the 2026-09-28 counts visible before
+the schema filter are excluded. **Pass for this breakdown:** v2 filtering and
+method counts match the two synthetic export events. This does not verify the
+ordered funnel, other property breakdowns or production reporting.
+
 ## Remaining provider and manual checks
 
 | Check | Status |
 | --- | --- |
 | Schema-v2 warning event received with four boolean flags and matching count | Pass for the observed case |
-| Verified outcome with zero warnings and four false flags received | Pending |
+| Verified outcome with zero warnings and four false flags received | Pass for the observed Properties record on 2026-10-05 |
 | Safe journey event names and `qr_exported` for both `copy` and `download` received | Pass for delivery; Raw inspected for both exports, Generator view and page view; `generator_started` properties still uninspected |
-| Ordered funnel and method/property breakdown using sandbox and schema-v2 filters | Pending |
-| Ingested properties contain only approved data | Pass for the four complete Raw records above; warning case inspected through Properties |
+| Export method breakdown using sandbox and schema-v2 filters | Pass on 2026-10-05: copy and download each total 1 |
+| Ordered funnel and other property breakdowns using sandbox and schema-v2 filters | Pending; the saved funnel screenshot did not show a fresh computation |
+| Ingested properties contain only approved data | Pass for the four complete Raw records above; both quality cases inspected through Properties |
 | Final outbound HTTP body contains only approved data | Pending v2 network evidence |
 | Local-origin analytics cookies, localStorage and sessionStorage absent | Pending v2 evidence |
 | Real Generator browser, clipboard, disk and tracker-blocker checks from #45 | Pending |

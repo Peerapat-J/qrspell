@@ -117,7 +117,7 @@ in the activation funnel. Do not mix Cloudflare counts into these rates.
 | --- | --- |
 | Project selection | Existing QRSpell EU project selected for sandbox and production on 2026-10-02; URL/ID in private release record |
 | Project settings and DPA review | Asia/Bangkok and cookieless enabled shown on 2026-10-02; remaining settings and DPA review pending |
-| Schema-v2 sandbox provider check | Warning case received; both export methods, Generator view and page view Raw records inspected on 2026-10-02; remaining checks in [schema-v2-validation.md](schema-v2-validation.md) |
+| Schema-v2 sandbox provider check | Both quality cases received; export, Generator view and page view Raw records inspected on 2026-10-02; verified zero-warning Properties and v2 export method counts inspected on 2026-10-05; remaining checks in [schema-v2-validation.md](schema-v2-validation.md) |
 | #45 manual browser/clipboard/disk/blocker QA | Pending |
 | Release commit and date/time | Pending |
 | Dashboard and insight URLs | Pending |
