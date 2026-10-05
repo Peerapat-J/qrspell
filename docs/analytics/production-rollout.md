@@ -25,9 +25,14 @@ project:
 - [ ] Product-event retention is 12 months or less.
 - [ ] DPA, current subprocessors, international processing and schema-v2
       privacy/consent decision reviewed.
-- [ ] Unused capture features remain off: autocapture, Web vitals autocapture,
-      automatic pageviews, session replay, surveys, heatmaps, exception capture, ad integrations,
-      flags and external SDK dependencies.
+- [x] Web vitals autocapture is off (screenshot supplied on 2026-10-05).
+- [ ] Other unused capture features remain off: autocapture, automatic pageviews,
+      session replay, surveys, heatmaps, exception capture, ad integrations, flags
+      and external SDK dependencies.
+
+Web vitals evidence reference: `codex-clipboard-f9bcba1c-b723-4e2f-adac-db8a98a69009.png`.
+The main **Enable web vitals autocapture** toggle is off. This confirms that
+specific project control, not the remaining capture settings or network checks.
 
 The historical [sandbox validation](sandbox-validation.md) proves only schema
 v1 behavior. Do not use its screenshots as proof that v2 was delivered. Record
@@ -116,7 +121,7 @@ in the activation funnel. Do not mix Cloudflare counts into these rates.
 | Field | Value |
 | --- | --- |
 | Project selection | Existing QRSpell EU project selected for sandbox and production on 2026-10-02; URL/ID in private release record |
-| Project settings and DPA review | Asia/Bangkok and cookieless enabled shown on 2026-10-02; remaining settings and DPA review pending |
+| Project settings and DPA review | Asia/Bangkok and cookieless enabled shown on 2026-10-02; Web vitals autocapture off shown on 2026-10-05; remaining settings and DPA review pending |
 | Schema-v2 sandbox provider check | Both quality cases received; export, Generator view and page view Raw records inspected on 2026-10-02; verified zero-warning Properties and v2 export method counts inspected on 2026-10-05; remaining checks in [schema-v2-validation.md](schema-v2-validation.md) |
 | #45 manual browser/clipboard/disk/blocker QA | Pending |
 | Release commit and date/time | Pending |
