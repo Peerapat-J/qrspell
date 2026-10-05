@@ -143,4 +143,6 @@ normal use without problems; production stays enabled during observation. The
 issue covers noise, unused fields/events, coverage, retention, representative
 production Raw sampling and an adequate sample before changing product defaults.
 Task creation is complete; review results and remaining Raw evidence are pending.
-Neither this record nor task creation closes Issue #46.
+On 2026-10-06 the owner authorized merging the evidence record into `dev` and
+closing Issue #46. Remaining Raw sampling and post-launch review continue in
+Issue #57; issue closure does not assert that those samples have been audited.

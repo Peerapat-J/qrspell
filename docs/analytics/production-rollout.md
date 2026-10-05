@@ -32,7 +32,9 @@ and its 17 saved insights were verified on 2026-10-06, as recorded in sections
 4–5. The snapshot is a small canary, not representative conversion data or a
 complete audit of every event/outcome. The dated post-launch review is tracked
 in [Issue #57](https://github.com/Peerapat-J/qrspell/issues/57) for
-2026-10-20 (`Asia/Bangkok`). This documentation update does not close Issue #46.
+2026-10-20 (`Asia/Bangkok`). On 2026-10-06 the owner authorized merging this
+record into `dev` and closing Issue #46, with remaining observation/review work
+tracked in Issue #57. Production remains enabled.
 
 ## 1. Review the existing project
 
@@ -150,10 +152,11 @@ click journey. No synthetic production events or repeat owner QA were requested.
       `generator_viewed`, `generator_started`, `qr_generation_completed`,
       `qr_exported` and `generator_reset`. This does not assert that all seven
       names were observed in production.
-- [ ] Complete representative production Raw sampling of event types and
-      quality outcomes as they become available, including provider-added
-      fields. Existing evidence covers sandbox Raw samples and the production
-      canary snapshot; it does not establish a full production Raw audit or
+- [x] Transfer remaining representative production Raw sampling to
+      [Issue #57](https://github.com/Peerapat-J/qrspell/issues/57), covering
+      available event types/outcomes and provider-added fields during review.
+      This records the handoff, not completed sampling. Existing evidence covers
+      sandbox Raw samples and the production canary snapshot; it does not establish a full production Raw audit or
       receipt of every outcome. Compare with `event-schema-v2.json` and retain
       closed low-cardinality enums/booleans; do not generate private test content.
 - [x] Saved production insights and each funnel step exclude sandbox, missing/
