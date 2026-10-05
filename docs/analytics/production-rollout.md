@@ -30,8 +30,9 @@ clipboard/download/blocker checks are recorded; do not ask the owner to repeat
 these checks. The release in section 3 is deployed. The production dashboard
 and its 17 saved insights were verified on 2026-10-06, as recorded in sections
 4–5. The snapshot is a small canary, not representative conversion data or a
-complete audit of every event/outcome. A dated post-launch review task has not
-yet been created. This documentation update does not close Issue #46.
+complete audit of every event/outcome. The dated post-launch review is tracked
+in [Issue #57](https://github.com/Peerapat-J/qrspell/issues/57) for
+2026-10-20 (`Asia/Bangkok`). This documentation update does not close Issue #46.
 
 ## 1. Review the existing project
 
@@ -166,8 +167,11 @@ click journey. No synthetic production events or repeat owner QA were requested.
 - [x] Saved dashboard/funnel descriptions disclose blocked/opted-out traffic,
       daily cookieless identity rotation, quality-event deduplication and export/
       App Store-click meaning.
-- [ ] Schedule a dated review after an agreed observation period. At that
-      review, assess event volume/noise, unused events/properties, blocker
+- [x] Create a dated review task after approximately two weeks of observation:
+      [Issue #57](https://github.com/Peerapat-J/qrspell/issues/57), assigned to
+      `Peerapat-J`, review date **2026-10-20 (`Asia/Bangkok`)**. Creating the task
+      does not mean the review has been performed. At that review, assess event
+      volume/noise, unused events/properties, blocker
       coverage, retention and whether a reverse proxy has a justified purpose.
       Record the minimum sample size and observation period required before
       changing any product default. Do not add a proxy solely to evade blockers.
@@ -183,4 +187,4 @@ click journey. No synthetic production events or repeat owner QA were requested.
 | Release commit and date/time | [PR #56](https://github.com/Peerapat-J/qrspell/pull/56), commit `9b56f728dcb9c7b99b843ff7ae4afd17e117f5fe`; Pages built 2026-10-05 23:33:22 Asia/Bangkok; schema 2; deployment and main CI success rechecked 2026-10-06 |
 | Dashboard and insight URLs | [QRSpell production](https://eu.posthog.com/project/286136/dashboard/999543); all 17 canonical insight links and saved-query checks in the [dated production record](production-validation-2026-10-06.md) |
 | Production raw-event and canary results | Production/schema-v2 Activity screenshot supplied 2026-10-06; saved charts reconciled 3 exports and 24 settled outcomes; acquisition/activation 1 completing identity each; App Store clicks 0; complete production Raw sampling remains unverified; see the [dated record](production-validation-2026-10-06.md) |
-| Dated post-launch review task | Not yet created; no review date or scheduled task is asserted by this record |
+| Dated post-launch review task | [Issue #57](https://github.com/Peerapat-J/qrspell/issues/57), created 2026-10-06; assigned to Peerapat-J; review 2026-10-20 Asia/Bangkok after approximately two weeks; review results remain pending |

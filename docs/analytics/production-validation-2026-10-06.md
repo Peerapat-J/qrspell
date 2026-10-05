@@ -136,8 +136,11 @@ native resize attempts; this is a presentation limitation, not a missing graph.
 
 ## Follow-up status
 
-A dated post-launch review task has not yet been created. The rollout checklist
-retains that item and representative production Raw sampling as uncompleted.
-Neither this record nor the dashboard authoring closes Issue #46. Use the
-observation period to review noise, unused fields/events, coverage and retention,
-and define an adequate sample before changing product defaults.
+[Issue #57](https://github.com/Peerapat-J/qrspell/issues/57) was created on
+2026-10-06 and assigned to `Peerapat-J`, with review date **2026-10-20
+(`Asia/Bangkok`)** after approximately two weeks of observation. The owner reports
+normal use without problems; production stays enabled during observation. The
+issue covers noise, unused fields/events, coverage, retention, representative
+production Raw sampling and an adequate sample before changing product defaults.
+Task creation is complete; review results and remaining Raw evidence are pending.
+Neither this record nor task creation closes Issue #46.
