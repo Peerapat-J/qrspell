@@ -1,12 +1,15 @@
 # Analytics foundation (#42)
 
-Production tracking is disabled in `assets/analytics-config.mjs`, with no
-production token. The static-site validator enforces that gate. The foundation
+Production tracking is enabled on the feature branch in
+`assets/analytics-config.mjs` following owner approval on 2026-10-05. The static
+validator checks the approved configuration and exact reviewed EU public token;
+disabled/tokenless remains a supported rollback. Deployment and live receipt
+are tracked in [production-rollout.md](production-rollout.md). The foundation
 itself adds no event call sites. Website instrumentation is
 documented in [website-events.md](website-events.md) (#43); Generator action
-events are documented in [generator-events.md](generator-events.md) (#44). #45 and
-the architecture-v1 production gates must pass before changing the production
-configuration and its validation gate.
+events are documented in [generator-events.md](generator-events.md) (#44). The
+#45 manual results and provider decision are recorded in the rollout evidence.
+Do not infer production provider delivery from enabling the local config.
 
 ## API
 
@@ -44,7 +47,7 @@ an instance after that timeout.
 - DNT/GPC and offline state are checked before initialization and capture.
 - No analytics cookies, localStorage, or sessionStorage are used. The SDK
   uses cookieless mode, memory persistence, and disabled persistence.
-- `event-schema-v1.json` is the source of truth. Regenerate its deeply frozen
+- `event-schema-v2.json` is the source of truth. Regenerate its deeply frozen
   browser module with `node scripts/generate-analytics-schema.mjs`; CI checks
   it with `--check`.
 - Unknown event names, properties, missing required fields, or unapproved
@@ -88,8 +91,9 @@ Policy covers the macOS app.
 
 
 For manual non-production validation on localhost, initialize an explicit instance
-in DevTools using the non-production project's public `phc_` token (never a
-personal API key):
+in DevTools using the selected EU project's public `phc_` token (never a
+personal API key). The shared-project rollout uses `environment = sandbox` for
+local tests and excludes those events from production insights:
 
 ```js
 const { createAnalytics } = await import("/assets/analytics.mjs");
@@ -106,9 +110,10 @@ sandbox.disableAnalytics();
 1. Serve the checkout on localhost and open Generator. In Network, confirm
    production boot loads no PostHog SDK or ingestion request. Generate a QR,
    verify it, copy/paste its PNG, download/open its PNG, and reset.
-2. Use a non-production EU project only for an explicit local sandbox instance
-   through the API above. Confirm no event is sent merely by initialization;
-   send approved test events and inspect their complete requests and raw events.
+2. Use the selected EU project only through an explicit local sandbox instance
+   for this test; the API above sends `environment = sandbox`. Confirm no event
+   is sent merely by initialization; send approved test events and inspect their
+   complete requests and raw events.
    Check the cookieless marker, no person processing, no GeoIP enrichment,
    and empty local-origin analytics cookie/localStorage/sessionStorage.
 3. Block the SDK or EU ingestion host in DevTools, then repeat Generator

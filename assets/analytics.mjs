@@ -1,10 +1,11 @@
-import { analyticsConfig } from "./analytics-config.mjs";
-import { snapshotProperties, validateEvent } from "./analytics-contract.mjs";
+import { analyticsConfig } from "./analytics-config.mjs?v=20261005a";
+import { analyticsSchema } from "./analytics-schema.mjs?v=20261005a";
+import { snapshotProperties, validateEvent } from "./analytics-contract.mjs?v=20261005a";
 
 const loopbackHosts = new Set(["localhost", "127.0.0.1", "[::1]"]);
 
 export function createAnalytics({ config = analyticsConfig, context = globalThis, loadProvider = async options => {
-    const { createPostHogProvider } = await import("./analytics-posthog.mjs");
+    const { createPostHogProvider } = await import("./analytics-posthog.mjs?v=20261005a");
     return createPostHogProvider(options);
 } } = {}) {
     // A private copy prevents later mutation of config from enabling capture.
@@ -63,7 +64,7 @@ export function createAnalytics({ config = analyticsConfig, context = globalThis
             const properties = snapshotProperties(input);
             if (!properties || Object.hasOwn(properties, "environment") || Object.hasOwn(properties, "analytics_schema_version")) return false;
             properties.environment = settings.environment;
-            properties.analytics_schema_version = 1;
+            properties.analytics_schema_version = analyticsSchema.schema_version;
             const accepted = validateEvent(name, properties);
             if (!accepted) return false;
             // Queued provider promises must not become unhandled product errors.

@@ -1,5 +1,5 @@
-import { initAnalytics, captureEvent } from "../assets/analytics.mjs";
-import { generationProperties, exportProperties } from "./generator-event-properties.mjs";
+import { initAnalytics, captureEvent } from "../assets/analytics.mjs?v=20261005a";
+import { generationProperties, exportProperties } from "./generator-event-properties.mjs?v=20261005a";
 
 export const analyticsSettleMs = 600;
 export const maximumQualityConfigurations = 256;
@@ -83,9 +83,9 @@ export function createGeneratorAnalytics({
         }
     }
 
-    function completed(revision, outcome, warningCount) {
+    function completed(revision, outcome, warningSummary) {
         if (!current || current.revision !== revision || disabled) return;
-        current.result = generationProperties(current.configuration, outcome, warningCount);
+        current.result = generationProperties(current.configuration, outcome, warningSummary);
         flush();
     }
 

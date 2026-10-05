@@ -8,6 +8,7 @@ import { analyticsSchema } from "../assets/analytics-schema.mjs";
 import { sanitizePostHogEvent, validateEvent } from "../assets/analytics-contract.mjs";
 import { sdkVersion } from "../assets/analytics-posthog.mjs";
 import { browserSchemaSource } from "./generate-analytics-schema.mjs";
+import { validateProductionAnalyticsConfig } from "./analytics-release-policy.mjs";
 
 const token = "phc_QRSpellUnitTestOnly";
 const config = { enabled: true, environment: "production", token };
@@ -31,7 +32,7 @@ function envelope(overrides = {}) {
     return {
         event: "generator_viewed",
         properties: {
-            analytics_schema_version: 1, environment: "production", token,
+            analytics_schema_version: 2, environment: "production", token,
             distinct_id: "$posthog_cookieless", $process_person_profile: false,
             $lib: "web", $lib_version: sdkVersion,
         },
@@ -42,8 +43,8 @@ function envelope(overrides = {}) {
 }
 const transport = { token, environment: "production", sdkVersion };
 
-test("deployed singleton stays disabled before the production gates pass", async () => {
-    assert.deepEqual(analyticsConfig, { enabled: false, environment: "production", token: "" });
+test("deployed singleton follows release policy and cannot capture outside a browser", async () => {
+    assert.equal(validateProductionAnalyticsConfig(analyticsConfig), null);
     assert.equal(await initAnalytics(), false);
     assert.equal(captureEvent("generator_viewed"), false);
 });
@@ -69,7 +70,7 @@ test("initializes once, drops pre-init events, and snapshots approved properties
     const input = { route: "generator" };
     assert.equal(analytics.captureEvent("site_page_viewed", input), true);
     input.route = "privacy";
-    assert.deepEqual({ ...captured[0].properties }, { route: "generator", environment: "production", analytics_schema_version: 1 });
+    assert.deepEqual({ ...captured[0].properties }, { route: "generator", environment: "production", analytics_schema_version: 2 });
 });
 
 test("rejects unknown events, unsafe values, and metadata overrides before calling the provider", async () => {
@@ -84,7 +85,7 @@ test("rejects unknown events, unsafe values, and metadata overrides before calli
         ["site_page_viewed", { route: { value: "generator" } }],
         ["site_page_viewed", { route: "data:image/png;base64,secret" }],
         ["generator_viewed", { environment: "sandbox" }],
-        ["generator_viewed", { analytics_schema_version: 1 }],
+        ["generator_viewed", { analytics_schema_version: 2 }],
         ["generator_viewed", { distinct_id: "secret" }],
         ["generator_viewed", new Error("secret")],
     ]) assert.equal(analytics.captureEvent(name, properties), false);
@@ -203,7 +204,7 @@ test("sanitizer strips automatic enrichment and unknown top-level content", () =
 test("sanitizer refuses persistent identities, person processing, token/version mismatches, and automatic events", () => {
     for (const change of [
         { distinct_id: "stable-id" }, { $process_person_profile: true }, { token: "phc_other" },
-        { $lib: "unknown" }, { $lib_version: "other" }, { environment: "sandbox" }, { analytics_schema_version: 2 },
+        { $lib: "unknown" }, { $lib_version: "other" }, { environment: "sandbox" }, { analytics_schema_version: 1 },
     ]) {
         const input = envelope();
         Object.assign(input.properties, change);

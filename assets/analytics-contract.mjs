@@ -1,4 +1,4 @@
-import { analyticsSchema } from "./analytics-schema.mjs";
+import { analyticsSchema } from "./analytics-schema.mjs?v=20261005a";
 
 // Read data descriptors rather than executing user-controlled getters.
 export function snapshotProperties(input) {

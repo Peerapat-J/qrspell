@@ -1,6 +1,7 @@
-// Production remains disabled until the architecture-v1 production gates and #45 pass.
+// Owner approved the existing EU Free project for production on 2026-10-05.
+// See docs/analytics/provider-review-2026-10-05.md for the accepted provider boundaries.
 export const analyticsConfig = Object.freeze({
-    enabled: false,
+    enabled: true,
     environment: "production",
-    token: "",
+    token: "phc_rfjQJC6pUhrw3gCg7AGpcXNUtnhKdvoJKPRHL5TypC57",
 });

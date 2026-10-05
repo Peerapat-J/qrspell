@@ -193,7 +193,7 @@ export function fitsQrCapacity(value, reliability) {
     return new TextEncoder().encode(content).length <= capacity;
 }
 
-export function readabilityWarnings({
+export function readabilityWarningDetails({
     foreground,
     background,
     content,
@@ -207,23 +207,27 @@ export function readabilityWarnings({
     const ratio = contrastRatio(foreground, background);
 
     if (foregroundLuminance > backgroundLuminance) {
-        warnings.push("Light QR modules on a dark background may be harder for some scanners to read.");
+        warnings.push({ code: "inverted_modules", message: "Light QR modules on a dark background may be harder for some scanners to read." });
     }
 
     if (ratio < 4.5) {
-        warnings.push(`Increase the color contrast for more reliable scanning (${ratio.toFixed(1)}:1).`);
+        warnings.push({ code: "low_contrast", message: `Increase the color contrast for more reliable scanning (${ratio.toFixed(1)}:1).` });
     }
 
     const contentBytes = new TextEncoder().encode(content).length;
     if (contentBytes > 350 && Number(exportSize) === 256) {
-        warnings.push("This QR is dense. Use a larger export size or shorter content.");
+        warnings.push({ code: "dense_content", message: "This QR is dense. Use a larger export size or shorter content." });
     }
 
     if (hasCenterContent && reliability === "M") {
-        warnings.push("Use High or Maximum reliability when adding center content.");
+        warnings.push({ code: "weak_center_reliability", message: "Use High or Maximum reliability when adding center content." });
     }
 
     return warnings;
+}
+
+export function readabilityWarnings(settings) {
+    return readabilityWarningDetails(settings).map(warning => warning.message);
 }
 
 export function buildQrOptions(settings) {

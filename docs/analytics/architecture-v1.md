@@ -1,10 +1,20 @@
 # Analytics architecture and privacy data contract v1
 
-- Status: **Sandbox validated; production remains gated**
+- Status: **production configuration approved/enabled on the feature branch; live rollout verification pending deployment**
 - Decision date: 2026-09-28
 - Scope: QRSpell public website and browser QR Generator
 - Tracking issue: [#40](https://github.com/Peerapat-J/qrspell/issues/40)
-- Schema: [`event-schema-v1.json`](event-schema-v1.json)
+- Current schema: [`event-schema-v2.json`](event-schema-v2.json); [v1](event-schema-v1.json)
+  is retained for historical validation.
+
+Schema v2 (2026-09-30) adds four bounded boolean warning categories to
+`qr_generation_completed` for issue #46. It does not add identity, storage,
+autocapture, or free-form values. The #40 sandbox record validates v1 only.
+The v2 provider evidence is recorded in `schema-v2-validation.md`. The new
+fields are derived only from the four already displayed warning conditions;
+the dated provider review records the collection configuration and the owner's
+2026-10-05 approval to proceed. Production delivery and dashboard verification
+follow deployment; approval does not claim those live checks are complete.
 
 ## Decision
 
@@ -158,33 +168,45 @@ revisit this if the site begins using storage for another user-facing setting.
 
 Consent review is reopened before adding stable identity, browser storage,
 advertising attribution, session replay, surveys, experiments, or data not in
-schema v1.
+the current approved schema.
 
 ## Retention and deletion
 
-- Product-event retention: **12 months maximum**. The selected free PostHog
-  plan advertises one-year data retention; verify the project retention window
-  before production enablement and after any plan change.
-- Sandbox events: keep only for the #40 evidence period and remove them by
-  deleting/replacing the non-production project before production rollout, or
-  use a separate production project.
+- Product-event retention: **PostHog Free-plan provider terms**, accepted by
+  the owner on 2026-10-05. The provider guarantees one year of event retention,
+  but may keep data longer in cold storage and does not guarantee deletion by
+  month 12. This explicitly replaces the earlier 12-month maximum policy;
+  QRSpell must not promise that maximum or treat query date filters as deletion.
+  See [the dated review](provider-review-2026-10-05.md). Re-review on plan changes.
+- Project sharing decision (2026-10-02): the repository owner selected the
+  existing EU project for sandbox and production. Safe sandbox events remain
+  subject to the same provider retention terms. Exclude them from every
+  production insight and funnel step with `environment = production`, the
+  deployed schema version and a date range starting at the production release.
+  Environment labels separate queries; settings, retention and usage remain
+  shared. No project or historical event deletion is part of this rollout.
 - Configuration review: every 90 days and whenever the provider plan changes.
 - Provider exit: stop capture first, export only aggregate documentation that
   is still needed, then delete the PostHog project/account data.
-- Data-subject deletion: schema v1 has no user-supplied identity and no stable
+- Data-subject deletion: schema v1 and v2 have no user-supplied identity and no stable
   cross-day identifier, so QRSpell cannot reliably locate a person's events.
   Record this limitation in the analytics documentation; do not promise
   per-person deletion that the implementation cannot provide.
 
-PostHog's retention endpoint reports a plan-controlled, read-only window. If
-the production project cannot enforce a window of 12 months or less, PostHog is
-No-go until the provider or plan supplies that control.
+PostHog's retention endpoint reports a plan-controlled, read-only window.
+The owner accepted the Free plan without a guaranteed maximum deletion bound;
+that lack of a 12-month deletion control no longer blocks this release. If a
+strict deletion deadline is introduced later, obtain enforceable controls
+before claiming it is satisfied.
 
 ## Processor and international-transfer boundary
 
 PostHog acts as a processor for the product-event stream. Production approval
-requires accepting the current PostHog DPA and recording the applicable
-subprocessor list. EU data residency controls primary storage location but does
+requires owner acceptance of the reviewed provider processing boundaries and
+recording the applicable subprocessor list. The owner accepted these boundaries
+on 2026-10-05. This chat approval is not a signed DPA or a legal-compliance
+certification; the dated review distinguishes those actions. EU data residency
+controls primary storage location but does
 not mean processing never occurs outside the protected area; PostHog's DPA
 explicitly describes possible transfers. Record those boundaries in the
 analytics documentation without claiming "EU only" or "never leaves the EU."
@@ -194,7 +216,10 @@ ETL, and external dashboards are not approved for this data set.
 
 ## Production gates
 
-PostHog changes from conditional Go to Go only when all gates pass:
+The reviewed production configuration can be deployed after the pre-release
+checks below. Live production delivery, storage and dashboard canary evidence
+is recorded after deployment in `production-rollout.md`, not inferred from
+configuration approval:
 
 1. Project is in EU Cloud, timezone is Asia/Bangkok, client IP discard is on,
    and Cookieless tracking is on.
@@ -205,11 +230,15 @@ PostHog changes from conditional Go to Go only when all gates pass:
    that origin's localStorage or sessionStorage. Existing `.posthog.com`
    dashboard-login cookies in an authenticated test profile are not QRSpell
    analytics storage and must be recorded separately rather than misclassified.
-5. The sandbox demonstrates a safe page view, custom events, property
-   breakdown, and an ordered funnel using only schema-v1 fields.
-6. The project retention window is confirmed at 12 months or less.
-7. DPA/subprocessor review and the internal provider/data-handling record are
-   complete. The public Privacy Policy continues to cover the macOS app.
+5. The sandbox demonstrates safe page views, custom events and property
+   breakdowns. The ordered funnel is configured with approved schema fields;
+   fresh production order/count verification follows deployment. Preserve the
+   limits of the existing screenshot evidence in the validation record.
+6. The current provider retention terms are reviewed and accepted by the owner;
+   re-review before changing plans or introducing a maximum deletion promise.
+7. DPA/subprocessor review, owner acceptance of the processing boundaries and
+   the internal provider/data-handling record are complete. This does not assert
+   a signed DPA. The public Privacy Policy continues to cover the macOS app.
 8. CSP allows only the exact vendored script and EU ingestion requirements.
 
 Failure of gates 3, 4, 6, or 7 is an automatic No-go. Other failures may be
@@ -247,6 +276,11 @@ open for product behavior.
 
 ## Validation record
 
-Complete [`sandbox-validation.md`](sandbox-validation.md) against the EU
-non-production project. Until every required row is marked Pass with dated
-evidence, production tracking remains disabled and #40 is not complete.
+[`sandbox-validation.md`](sandbox-validation.md) records the historical v1
+check. [`schema-v2-validation.md`](schema-v2-validation.md) records safe
+`environment = sandbox` events, automated checks and owner manual results.
+Production tracking stayed disabled before owner approval. The owner approved
+activation on 2026-10-05 under the revised retention
+policy. The feature branch now enables the reviewed EU project; this is not
+proof of deployment. Record production delivery and dashboard checks after the
+reviewed release as described in [`production-rollout.md`](production-rollout.md).

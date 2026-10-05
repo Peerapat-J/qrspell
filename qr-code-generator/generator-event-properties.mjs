@@ -1,5 +1,5 @@
-import { analyticsSchema } from "../assets/analytics-schema.mjs";
-import { snapshotProperties } from "../assets/analytics-contract.mjs";
+import { analyticsSchema } from "../assets/analytics-schema.mjs?v=20261005a";
+import { snapshotProperties } from "../assets/analytics-contract.mjs?v=20261005a";
 
 const settingNames = {
     module_shape: "moduleShape",
@@ -24,12 +24,22 @@ function settingsProperties(configuration, eventName) {
     return properties;
 }
 
-export function generationProperties(configuration, outcome, warningCount) {
+const warningNames = [
+    "warning_inverted_modules", "warning_low_contrast",
+    "warning_dense_content", "warning_weak_center_reliability",
+];
+
+export function generationProperties(configuration, outcome, warningSummary) {
     try {
         const rules = analyticsSchema.events.qr_generation_completed.properties;
-        if (!rules.outcome.enum.includes(outcome) || !rules.warning_count.enum.includes(warningCount)) return null;
+        const summary = snapshotProperties(warningSummary);
+        if (!summary || !rules.outcome.enum.includes(outcome)
+            || !rules.warning_count.enum.includes(summary.warning_count)
+            || Object.keys(summary).length !== warningNames.length + 1
+            || warningNames.some(name => typeof summary[name] !== "boolean")
+            || warningNames.reduce((count, name) => count + Number(summary[name]), 0) !== summary.warning_count) return null;
         const properties = settingsProperties(configuration, "qr_generation_completed");
-        return properties ? Object.freeze({ ...properties, outcome, warning_count: warningCount }) : null;
+        return properties ? Object.freeze({ ...properties, outcome, ...summary }) : null;
     } catch {
         return null;
     }

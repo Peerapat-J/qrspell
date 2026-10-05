@@ -1,8 +1,8 @@
-// Generated from docs/analytics/event-schema-v1.json. Do not edit by hand.
+// Generated from docs/analytics/event-schema-v2.json. Do not edit by hand.
 const schema = {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "QRSpell analytics event contract",
-  "schema_version": 1,
+  "schema_version": 2,
   "provider": "posthog",
   "environment_values": [
     "sandbox",
@@ -25,7 +25,7 @@ const schema = {
       ],
       "properties": {
         "analytics_schema_version": {
-          "const": 1
+          "const": 2
         },
         "environment": {
           "enum": [
@@ -54,7 +54,7 @@ const schema = {
       ],
       "properties": {
         "analytics_schema_version": {
-          "const": 1
+          "const": 2
         },
         "environment": {
           "enum": [
@@ -79,7 +79,7 @@ const schema = {
       ],
       "properties": {
         "analytics_schema_version": {
-          "const": 1
+          "const": 2
         },
         "environment": {
           "enum": [
@@ -96,7 +96,7 @@ const schema = {
       ],
       "properties": {
         "analytics_schema_version": {
-          "const": 1
+          "const": 2
         },
         "environment": {
           "enum": [
@@ -116,11 +116,15 @@ const schema = {
         "export_size",
         "reliability",
         "center_type",
-        "warning_count"
+        "warning_count",
+        "warning_inverted_modules",
+        "warning_low_contrast",
+        "warning_dense_content",
+        "warning_weak_center_reliability"
       ],
       "properties": {
         "analytics_schema_version": {
-          "const": 1
+          "const": 2
         },
         "environment": {
           "enum": [
@@ -181,6 +185,30 @@ const schema = {
             3,
             4
           ]
+        },
+        "warning_inverted_modules": {
+          "enum": [
+            false,
+            true
+          ]
+        },
+        "warning_low_contrast": {
+          "enum": [
+            false,
+            true
+          ]
+        },
+        "warning_dense_content": {
+          "enum": [
+            false,
+            true
+          ]
+        },
+        "warning_weak_center_reliability": {
+          "enum": [
+            false,
+            true
+          ]
         }
       }
     },
@@ -197,7 +225,7 @@ const schema = {
       ],
       "properties": {
         "analytics_schema_version": {
-          "const": 1
+          "const": 2
         },
         "environment": {
           "enum": [
@@ -255,7 +283,7 @@ const schema = {
       ],
       "properties": {
         "analytics_schema_version": {
-          "const": 1
+          "const": 2
         },
         "environment": {
           "enum": [

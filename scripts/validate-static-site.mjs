@@ -4,6 +4,7 @@ import { dirname, join, normalize, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { analyticsConfig } from "../assets/analytics-config.mjs";
 import { analyticsSchema } from "../assets/analytics-schema.mjs";
+import { validateProductionAnalyticsConfig } from "./analytics-release-policy.mjs";
 
 const root = normalize(join(dirname(fileURLToPath(import.meta.url)), ".."));
 const siteOrigin = process.env.SITE_ORIGIN ?? "https://qrspell.app";
@@ -415,7 +416,7 @@ function normalizeSiteBasePath(basePath) {
 function validateAnalyticsBootstrap(htmlFile, html) {
     const scripts = [...html.matchAll(/<script\b[^>]*analytics-bootstrap\.mjs[^>]*><\/script>/giu)];
     const prefix = htmlFile === "index.html" ? "" : "../";
-    const expected = `<script type="module" src="${prefix}assets/analytics-bootstrap.mjs?v=20260929a"></script>`;
+    const expected = `<script type="module" src="${prefix}assets/analytics-bootstrap.mjs?v=20261005a"></script>`;
     if (scripts.length !== 1 || scripts[0][0] !== expected) {
         errors.push(`${htmlFile} must load exactly one local analytics bootstrap module.`);
     }
@@ -430,9 +431,8 @@ function validateAnalyticsBundle() {
     if (manifest.sha256 !== checksum || manifest.version !== "1.434.17" || manifest.entrypoint !== "dist/module.slim.no-external.js") {
         errors.push("PostHog SDK must match the approved pinned manifest.");
     }
-    if (analyticsConfig.enabled !== false || analyticsConfig.environment !== "production" || analyticsConfig.token !== "") {
-        errors.push("Production analytics must remain disabled until the production gates pass.");
-    }
+    const configError = validateProductionAnalyticsConfig(analyticsConfig);
+    if (configError) errors.push(configError);
 }
 
 function validateAnalyticsRoute(htmlFile, html) {
