@@ -1,8 +1,11 @@
 # Website events (#43)
 
-Production stays disabled. The optional bootstrap starts `site-analytics.mjs`;
-all provider access remains behind `analytics.mjs`. The page lifecycle is held
-in a WeakMap: repeated starts, including concurrent starts, do not duplicate
+As of 2026-10-05, the owner-approved release configuration enables production
+capture with the existing PostHog EU project's public token. Live production
+receipt and dashboard verification await deployment; see
+[production-rollout.md](production-rollout.md). The optional bootstrap starts
+`site-analytics.mjs`; all provider access remains behind `analytics.mjs`.
+The page lifecycle is held in a WeakMap: repeated starts, including concurrent starts, do not duplicate
 initialization, page views, or CTA listeners.
 
 ## Page views and App Store interest
@@ -57,9 +60,11 @@ failure, and hostile attribution inputs. Static validation checks every page
 and CTA. Browser tests audit the actual pinned SDK envelopes and storage with
 a fake sandbox token and interception of all external requests.
 
-Manual tracker-blocker and real-provider delivery checks remain separate from
-automated browser interception. Production activation remains gated by #45
-and architecture-v1.md.
+Manual tracker-blocker and real-provider delivery evidence remains separate from
+automated browser interception. The recorded owner checks and schema-v2 provider
+evidence are linked from [production-rollout.md](production-rollout.md). Issue #45
+is closed and activation was authorized on 2026-10-05; production receipt and
+dashboard verification require the release to be deployed.
 
 ## Verification record — 2026-09-29
 
@@ -78,5 +83,7 @@ and architecture-v1.md.
   a real tracker blocker, and delivery/raw-event inspection in an approved
   non-production provider project. Interception proves outgoing shape and
   failure behavior, not real provider delivery.
-- No real UTM values are registered. Production remains disabled and tokenless;
-  #45 and the architecture gates still govern activation.
+- No real UTM values were registered at this verification. Production was
+  disabled and tokenless on 2026-09-29; activation was subsequently authorized
+  on 2026-10-05. See [production-rollout.md](production-rollout.md) for the current
+  configuration and deployment follow-ups.

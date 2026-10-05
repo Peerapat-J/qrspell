@@ -112,7 +112,10 @@ After deployment (pending):
 
 ## Foundation integration (#42)
 
-The Generator now also loads the optional local analytics bootstrap. Product
-tracking remains disabled; CSP reserves only the exact EU ingestion origin
-`https://eu.i.posthog.com` in addition to the Cloudflare permissions above.
-No PostHog script origin or broad connection permission is added.
+The Generator also loads the optional local analytics bootstrap. As of
+2026-10-05, the owner-approved release configuration enables PostHog production
+capture with the existing EU project's public token. Live production receipt
+awaits deployment; see [production-rollout.md](production-rollout.md).
+CSP permits only the exact EU ingestion origin `https://eu.i.posthog.com`
+in addition to the Cloudflare permissions above. No PostHog script origin or
+broad connection permission is added.

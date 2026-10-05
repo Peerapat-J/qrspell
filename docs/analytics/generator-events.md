@@ -2,8 +2,10 @@
 
 Generator instrumentation is optional. `generator.mjs` dynamically imports its
 controller independently of controls, rendering and website instrumentation.
-All outbound events still go through the shared wrapper and sanitizer. Production
-remains disabled and tokenless; #45 and the architecture gates govern activation.
+All outbound events still go through the shared wrapper and sanitizer. As of
+2026-10-05, the owner-approved release configuration enables production capture
+with the existing PostHog EU project's public token. Live production receipt and
+dashboard verification await deployment; see [production-rollout.md](production-rollout.md).
 The shared website lifecycle owns `site_page_viewed` and `app_store_clicked`.
 
 ## Counting rules
@@ -102,20 +104,25 @@ Run `node --test scripts/*.test.mjs`,
 `node scripts/generate-analytics-schema.mjs --check`, and
 `node scripts/validate-static-site.mjs`.
 
-Manual QA remains: a real tracker blocker, physical clipboard paste, saving the
-browser download to disk, and delivery/raw-event inspection in an approved
-non-production provider project. The internal data-handling record, site-wide
-CSP, and full release canary matrix remain #45 gates. The public Privacy Policy
-covers the macOS app.
+The owner reported physical clipboard paste, opened PNG downloads, and Generator
+journeys with and without analytics blocking passed on 2026-10-05. Real-provider
+schema-v2 evidence is recorded in [schema-v2-validation.md](schema-v2-validation.md).
+Issue #45 is closed; the provider decision and activation approval are recorded
+in [provider-review-2026-10-05.md](provider-review-2026-10-05.md). Live production
+receipt and the post-release canary matrix remain deployment follow-ups in
+[production-rollout.md](production-rollout.md). The public Privacy Policy covers
+the macOS app.
 
 ## Schema v2 addition — 2026-09-30
 
 Issue #46 adds four boolean warning-category properties. The browser test now
 checks that the displayed warning count and categories match the captured event;
 unit tests check simultaneous categories, count consistency and hostile values.
-The previous sandbox/provider screenshots and 2026-09-29 verification record
-were for schema v1. Repeat real-provider delivery and raw-event checks for v2
-before production activation.
+At the schema-v2 introduction, the previous sandbox/provider screenshots and
+2026-09-29 verification record covered schema v1 only. Subsequent v2 delivery and
+raw-event checks are recorded in [schema-v2-validation.md](schema-v2-validation.md);
+activation was authorized on 2026-10-05. The historical record below does not
+describe the current release configuration.
 
 ## Verification record — 2026-09-29
 
@@ -128,4 +135,6 @@ before production activation.
 - Clipboard success/failure used a stub; browser downloads were initiated and
   denied by the harness. Physical clipboard/disk, tracker-blocker and approved
   real-provider delivery checks remain manual.
-- Production configuration remains disabled and tokenless.
+- At the 2026-09-29 verification, production configuration was disabled and
+  tokenless. It was subsequently enabled with owner approval on 2026-10-05;
+  see [production-rollout.md](production-rollout.md) for deployment status.
