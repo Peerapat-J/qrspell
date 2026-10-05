@@ -41,13 +41,15 @@ project:
 - [x] EU Cloud and timezone `Asia/Bangkok` (screenshots supplied on 2026-10-02).
 - [x] Cookieless tracking enabled in Web analytics (screenshot on 2026-10-02).
 - [x] Client IP discard enabled (owner confirmed on 2026-10-05).
-- [ ] Product-event retention is 12 months or less.
+- [ ] A 12-month maximum deletion bound is enforceable. Owner confirmed Free
+      on 2026-10-05; the advertised one-year window does not prove this bound.
+      See [provider-review-2026-10-05.md](provider-review-2026-10-05.md).
 - [ ] DPA, current subprocessors, international processing and schema-v2
       privacy/consent decision reviewed.
 - [x] Web vitals autocapture is off (screenshot supplied on 2026-10-05).
-- [ ] Other unused capture features remain off: autocapture, automatic pageviews,
-      session replay, surveys, heatmaps, exception capture, ad integrations, flags
-      and external SDK dependencies.
+- [x] The adapter explicitly disables unused capture features; the pinned-SDK
+      automated tests pass. This is code/runtime evidence rather than an audit
+      of every project UI switch; see the dated provider review.
 
 Web vitals evidence reference: `codex-clipboard-f9bcba1c-b723-4e2f-adac-db8a98a69009.png`.
 The main **Enable web vitals autocapture** toggle is off. This confirms that
@@ -80,15 +82,21 @@ blocker are separate checks from the automated suite.
 
 ## 3. Prepare the release change
 
-Only after sections 1–2 and the #45 manual checks pass:
+The validator and its activation/rollback tests can be prepared while capture
+is disabled. Activate only after the unresolved provider decisions pass:
 
 - [ ] Set `enabled: true` and the existing project's public `phc_` token in
       `assets/analytics-config.mjs`; keep `environment: "production"`.
-- [ ] Change the static-site validator from its temporary disabled/tokenless
-      rule to an exact, reviewed production-token/configuration rule. Keep its
-      SDK pin, CSP and route checks. Add validator tests for missing, malformed,
-      wrong-project and disabled configurations.
-- [ ] Run `node scripts/generate-analytics-schema.mjs --check`,
+- [x] Prepare an exact reviewed-token/configuration rule in
+      `scripts/analytics-release-policy.mjs`, used by the static-site validator.
+      SDK pin, CSP and route checks remain. Tests reject missing, malformed and
+      wrong-project configurations and permit disabled/tokenless rollback.
+- [ ] Resolve and record the provider decisions, then set
+      `productionCaptureApproved = true` in the release policy together with
+      the enabled production config. The policy currently remains false.
+- [x] Prepared validator verified on 2026-10-05: 274 tests pass, no failures or
+      skips; schema/static-site/whitespace checks pass. Repeat after activation.
+- [ ] For the activation commit, run `node scripts/generate-analytics-schema.mjs --check`,
       `node --test scripts/*.test.mjs`, `node scripts/validate-static-site.mjs`
       and `git diff --check`. Record automated and manual results separately.
 - [ ] Deploy the reviewed release through the normal repository workflow.
@@ -140,7 +148,7 @@ in the activation funnel. Do not mix Cloudflare counts into these rates.
 | Field | Value |
 | --- | --- |
 | Project selection | Existing QRSpell EU project selected for sandbox and production on 2026-10-02; URL/ID in private release record |
-| Project settings and DPA review | Asia/Bangkok and cookieless enabled shown on 2026-10-02; Web vitals autocapture off shown and client IP discard confirmed on 2026-10-05; remaining settings and DPA review pending |
+| Project settings and DPA review | Asia/Bangkok and cookieless enabled shown on 2026-10-02; Web vitals autocapture off shown and client IP discard confirmed on 2026-10-05; Free plan confirmed by owner; adapter capture settings and provider documents reviewed; strict maximum-retention decision and owner DPA acceptance remain pending; see [dated review](provider-review-2026-10-05.md) |
 | Schema-v2 sandbox provider check | Both quality cases received; export, Generator view and page view Raw records inspected on 2026-10-02; verified zero-warning Properties and v2 export method counts inspected on 2026-10-05; remaining checks in [schema-v2-validation.md](schema-v2-validation.md) |
 | #45 implementation and manual effects | Issue closed and PR #54 merged; automated v2 SDK/network/storage/failure checks pass (29 tests, 2026-10-05); owner reported real clipboard, opened PNG and normal/blocked/tracker-blocker journeys passed on 2026-10-05 |
 | Release commit and date/time | Pending |

@@ -196,7 +196,7 @@ part of the release canary.
 | Final outbound HTTP body contains only approved data | Pass in the automated v2 SDK/Generator tests; live production inspection remains part of the release canary |
 | Local-origin analytics cookies, localStorage and sessionStorage absent | Pass in the automated v2 browser tests; live production storage inspection remains part of the release canary |
 | Real Generator clipboard, disk and tracker-blocker checks | Pass as owner-reported manual evidence on 2026-10-05; production blocker-suppression trace remains part of the canary |
-| Remaining project settings, retention and DPA review | Pending |
+| Provider review and owner decision | Free plan confirmed; code capture settings and current provider documents reviewed on 2026-10-05. Strict retention bound and owner DPA acceptance unresolved; see [provider review](provider-review-2026-10-05.md). |
 | Production delivery, dashboard and canary checks | Pending reviewed release |
 
 The earlier [v1 validation](sandbox-validation.md) remains historical evidence.
