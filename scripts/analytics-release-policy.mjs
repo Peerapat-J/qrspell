@@ -1,7 +1,8 @@
 import { createHash } from "node:crypto";
 
-// Change only in the release commit after resolving the recorded provider gates.
-export const productionCaptureApproved = false;
+// Owner approved Free-plan retention and processing boundaries on 2026-10-05.
+// See docs/analytics/provider-review-2026-10-05.md; this is not a signed DPA.
+export const productionCaptureApproved = true;
 
 // Pins the existing QRSpell EU public project token reviewed in the sandbox.
 const reviewedTokenSha256 = "4848847b83bb85c1ad2aea760bed167c4832120447a349ea14269a55668d8c48";

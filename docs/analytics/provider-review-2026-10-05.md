@@ -9,11 +9,14 @@ and blocked journeys and a real tracker blocker passed by owner report. See
 [schema-v2-validation.md](schema-v2-validation.md). Do not repeat those checks
 just to collect more screenshots.
 
-The code and provider documents have been reviewed below. Production capture
-remains disabled: owner acceptance of the provider terms is not recorded, and
-the current provider wording does not prove the repository's strict 12-month
-maximum deletion requirement. This is a provider-policy decision, not another
-Generator test failure. The website can be released with analytics disabled.
+The code and provider documents have been reviewed below. After this review,
+the owner explicitly instructed: “ยอมรับเงื่อนไข Free แล้วเปิด production ต่อ”.
+This accepts proceeding with the Free-plan retention and international
+processing boundaries presented in the review. The activation change updates
+the internal retention policy and enables the existing EU project on the
+feature branch. This records release authorization, not deployment or a signed
+DPA. No further owner confirmation or repeat Generator QA is required for this
+activation change.
 
 ## Retention: correct the earlier interpretation
 
@@ -27,14 +30,14 @@ The earlier Free-plan retention passes in
 [sandbox-validation.md](sandbox-validation.md) establish the advertised window
 only; they do not establish the maximum deletion bound in
 [architecture-v1.md](architecture-v1.md#retention-and-deletion). That strict gate
-remains unresolved. Do not silently change it to a pass or edit historical
-records to imply provider deletion was inspected.
+was unresolved before the owner's explicit policy revision. Do not relabel
+the earlier maximum-deletion gate as a verified provider capability or edit
+historical records to imply provider deletion was inspected.
 
-A concrete owner decision is required before activation: retain the strict
-maximum and obtain enforceable provider controls, or explicitly revise the
-internal policy to use Free-plan retention with no guaranteed 12-month deletion
-bound. The latter requires updating the architecture and rollout record in the
-activation commit. A dashboard date filter does not delete older data.
+The owner chose to revise the internal policy to use Free-plan retention
+without a guaranteed 12-month deletion bound. The activation change updates
+both the architecture and rollout record accordingly. A dashboard date filter
+does not delete older data. No upgrade or second project is part of the choice.
 
 ## DPA and processing locations
 
@@ -96,9 +99,10 @@ rejects activation until `productionCaptureApproved` is explicitly true.
 `scripts/validate-static-site.mjs` uses that policy without changing the SDK,
 CSP or route checks. Disabled/tokenless remains a valid rollback.
 
-After the owner resolves the provider decisions, the activation commit changes
-`productionCaptureApproved` and `assets/analytics-config.mjs` together, records
-the decision and reruns validation. Tests cover the approved token, another
+The owner resolved the provider decisions on 2026-10-05. The activation change
+sets `productionCaptureApproved = true` and enables `assets/analytics-config.mjs`
+with the existing EU public token together, records the decision and reruns
+validation. Tests cover the approved token, another
 project, missing/malformed fields, wrong environments and rollback. An
 approval flag is a review guard, not proof of provider compliance.
 
@@ -118,5 +122,17 @@ provider delivery. The separate owner-reported real clipboard/disk/blocker
 checks already passed and need no repetition here.
 
 Code preparation commit: `f104201` (`feat(analytics): prepare production config
-validation`). `assets/analytics-config.mjs` remains disabled and tokenless;
-no deployment, push or PR creation has occurred in this step.
+validation`). At that preparation step the config was disabled/tokenless. The
+subsequent owner-approved activation enables it on this branch. Deployment,
+push and PR creation are separate from this local change.
+
+## Activation validation after owner approval
+
+On 2026-10-05 (Asia/Bangkok), with the enabled production config and reviewed
+public token in place: generated schema check passed, the full suite passed
+**274 tests, zero failures/skips** in 42.8 seconds, static-site validation passed
+and `git diff --check` passed. Browser fixtures intercepted external traffic;
+this run did not send production events. The production environment still
+requires the exact `https://qrspell.app` origin, respects DNT/GPC and declines
+webdriver; local previews do not become production traffic. Deploy the reviewed
+activation commit before recording the live release date or provider receipt.

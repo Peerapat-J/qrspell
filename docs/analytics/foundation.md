@@ -1,12 +1,15 @@
 # Analytics foundation (#42)
 
-Production tracking is disabled in `assets/analytics-config.mjs`, with no
-production token. The static-site validator enforces that gate. The foundation
+Production tracking is enabled on the feature branch in
+`assets/analytics-config.mjs` following owner approval on 2026-10-05. The static
+validator checks the approved configuration and exact reviewed EU public token;
+disabled/tokenless remains a supported rollback. Deployment and live receipt
+are tracked in [production-rollout.md](production-rollout.md). The foundation
 itself adds no event call sites. Website instrumentation is
 documented in [website-events.md](website-events.md) (#43); Generator action
-events are documented in [generator-events.md](generator-events.md) (#44). #45 and
-the architecture-v1 production gates must pass before changing the production
-configuration and its validation gate.
+events are documented in [generator-events.md](generator-events.md) (#44). The
+#45 manual results and provider decision are recorded in the rollout evidence.
+Do not infer production provider delivery from enabling the local config.
 
 ## API
 

@@ -5,9 +5,10 @@ Issue: [#46](https://github.com/Peerapat-J/qrspell/issues/46)
 The existing QRSpell EU project is selected for local validation and production.
 Local test events carry `environment = sandbox`. Production reporting must use
 `environment = production`, schema version 2 and the production release date
-onward on every insight and funnel step. Production capture remains disabled
-until the pre-release checks in [production-rollout.md](production-rollout.md)
-pass.
+onward on every insight and funnel step. The owner approved production
+activation on 2026-10-05 and the feature branch enables the reviewed EU project.
+Live production receipt remains unverified until deployment; see
+[production-rollout.md](production-rollout.md).
 
 ## 2026-10-02: warning event received
 
@@ -196,7 +197,7 @@ part of the release canary.
 | Final outbound HTTP body contains only approved data | Pass in the automated v2 SDK/Generator tests; live production inspection remains part of the release canary |
 | Local-origin analytics cookies, localStorage and sessionStorage absent | Pass in the automated v2 browser tests; live production storage inspection remains part of the release canary |
 | Real Generator clipboard, disk and tracker-blocker checks | Pass as owner-reported manual evidence on 2026-10-05; production blocker-suppression trace remains part of the canary |
-| Provider review and owner decision | Free plan confirmed; code capture settings and current provider documents reviewed on 2026-10-05. Strict retention bound and owner DPA acceptance unresolved; see [provider review](provider-review-2026-10-05.md). |
+| Provider review and owner decision | Free plan confirmed; code capture settings and current provider documents reviewed on 2026-10-05. Owner accepted Free retention without a guaranteed 12-month deletion bound and the reviewed processing boundaries; activation approved on 2026-10-05; see [provider review](provider-review-2026-10-05.md). |
 | Production delivery, dashboard and canary checks | Pending reviewed release |
 
 The earlier [v1 validation](sandbox-validation.md) remains historical evidence.

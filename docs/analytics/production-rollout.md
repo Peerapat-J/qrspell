@@ -3,9 +3,11 @@
 This runbook records the work that remains after the local implementation.
 On 2026-10-02, the repository owner selected the existing PostHog EU project
 for both local validation and production. No additional project or plan upgrade
-is required by this rollout. Until the project review, schema-v2 validation and
-#45 manual checks pass, `assets/analytics-config.mjs` stays disabled and tokenless,
-and `scripts/validate-static-site.mjs` keeps rejecting an enabled config.
+is required by this rollout. On 2026-10-05 the owner accepted the Free-plan
+retention and processing boundaries and authorized production activation.
+`assets/analytics-config.mjs` now enables the existing EU public token on the
+feature branch; the validator pins that reviewed project. Live deployment and
+post-release checks remain separate from local configuration approval.
 Do not put a Personal API key or Project secret key in this repository.
 
 ## Release sequence
@@ -19,9 +21,10 @@ implementation in PR #54 is merged. The owner reported real clipboard, opened
 PNG and normal/blocked/tracker-blocker journeys passed on 2026-10-05. Keep this
 manual evidence separate from automated results and implementation status.
 
-Before enabling capture, finish the project/privacy review and real Generator
-clipboard/download/blocker checks, then prepare the production config and
-validator change in section 3. Production event inspection and dashboard
+The project/provider review, owner acceptance and real Generator
+clipboard/download/blocker checks are recorded. The release config and
+validator are prepared in section 3; do not ask the owner to repeat these checks.
+Production event inspection and dashboard
 verification in sections 4–5 require the release to be deployed; they are
 post-deployment checks, not additional prerequisites for preparing that change.
 The dated review follows the observation period. Issue #46 stays open until
@@ -41,11 +44,13 @@ project:
 - [x] EU Cloud and timezone `Asia/Bangkok` (screenshots supplied on 2026-10-02).
 - [x] Cookieless tracking enabled in Web analytics (screenshot on 2026-10-02).
 - [x] Client IP discard enabled (owner confirmed on 2026-10-05).
-- [ ] A 12-month maximum deletion bound is enforceable. Owner confirmed Free
-      on 2026-10-05; the advertised one-year window does not prove this bound.
+- [x] Free-plan retention accepted by the owner on 2026-10-05 without a
+      guaranteed 12-month deletion bound. This revises the earlier internal
+      maximum policy; it does not prove provider deletion by that deadline.
       See [provider-review-2026-10-05.md](provider-review-2026-10-05.md).
-- [ ] DPA, current subprocessors, international processing and schema-v2
-      privacy/consent decision reviewed.
+- [x] DPA/Core Services subprocessors, international processing and schema-v2
+      collection decision reviewed; the owner accepted proceeding under these
+      boundaries on 2026-10-05. This does not assert an executed DPA.
 - [x] Web vitals autocapture is off (screenshot supplied on 2026-10-05).
 - [x] The adapter explicitly disables unused capture features; the pinned-SDK
       automated tests pass. This is code/runtime evidence rather than an audit
@@ -82,21 +87,23 @@ blocker are separate checks from the automated suite.
 
 ## 3. Prepare the release change
 
-The validator and its activation/rollback tests can be prepared while capture
-is disabled. Activate only after the unresolved provider decisions pass:
+The owner authorized activation on 2026-10-05. The local activation change is
+ready for normal review and deployment; production receipt is not yet proven:
 
-- [ ] Set `enabled: true` and the existing project's public `phc_` token in
+- [x] Set `enabled: true` and the existing project's public `phc_` token in
       `assets/analytics-config.mjs`; keep `environment: "production"`.
 - [x] Prepare an exact reviewed-token/configuration rule in
       `scripts/analytics-release-policy.mjs`, used by the static-site validator.
       SDK pin, CSP and route checks remain. Tests reject missing, malformed and
       wrong-project configurations and permit disabled/tokenless rollback.
-- [ ] Resolve and record the provider decisions, then set
-      `productionCaptureApproved = true` in the release policy together with
-      the enabled production config. The policy currently remains false.
+- [x] Record the owner's provider decision and set
+      `productionCaptureApproved = true` together with the enabled production
+      config. Disabled/tokenless remains a supported rollback.
 - [x] Prepared validator verified on 2026-10-05: 274 tests pass, no failures or
       skips; schema/static-site/whitespace checks pass. Repeat after activation.
-- [ ] For the activation commit, run `node scripts/generate-analytics-schema.mjs --check`,
+- [x] Activation validation passed on 2026-10-05: schema check, **274 tests
+      passed, zero failures/skips**, static-site validator and whitespace check.
+      Commands: `node scripts/generate-analytics-schema.mjs --check`,
       `node --test scripts/*.test.mjs`, `node scripts/validate-static-site.mjs`
       and `git diff --check`. Record automated and manual results separately.
 - [ ] Deploy the reviewed release through the normal repository workflow.
@@ -148,10 +155,10 @@ in the activation funnel. Do not mix Cloudflare counts into these rates.
 | Field | Value |
 | --- | --- |
 | Project selection | Existing QRSpell EU project selected for sandbox and production on 2026-10-02; URL/ID in private release record |
-| Project settings and DPA review | Asia/Bangkok and cookieless enabled shown on 2026-10-02; Web vitals autocapture off shown and client IP discard confirmed on 2026-10-05; Free plan confirmed by owner; adapter capture settings and provider documents reviewed; strict maximum-retention decision and owner DPA acceptance remain pending; see [dated review](provider-review-2026-10-05.md) |
+| Project settings and DPA review | Asia/Bangkok and cookieless enabled shown on 2026-10-02; Web vitals autocapture off shown and client IP discard confirmed on 2026-10-05; Free plan confirmed by owner; adapter capture settings and provider documents reviewed; owner accepted the provider retention/processing boundaries and revised the internal maximum-retention policy on 2026-10-05; no signed DPA is asserted; see [dated review](provider-review-2026-10-05.md) |
 | Schema-v2 sandbox provider check | Both quality cases received; export, Generator view and page view Raw records inspected on 2026-10-02; verified zero-warning Properties and v2 export method counts inspected on 2026-10-05; remaining checks in [schema-v2-validation.md](schema-v2-validation.md) |
 | #45 implementation and manual effects | Issue closed and PR #54 merged; automated v2 SDK/network/storage/failure checks pass (29 tests, 2026-10-05); owner reported real clipboard, opened PNG and normal/blocked/tracker-blocker journeys passed on 2026-10-05 |
-| Release commit and date/time | Pending |
+| Release commit and date/time | Local activation commit prepared on 2026-10-05 (Asia/Bangkok); deployed commit and live release time pending deployment |
 | Dashboard and insight URLs | Pending |
 | Production raw-event and canary results | Pending |
 | Dated post-launch review task | Pending |
