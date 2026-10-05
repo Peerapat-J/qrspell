@@ -32,6 +32,7 @@ writeFileSync(join(fixture, "qr-code-generator/index.html"), generator);
 mkdirSync(join(fixture, "scripts"));
 const validator = join(fixture, "scripts", "validate-static-site.mjs");
 copyFileSync(join(root, "scripts", "validate-static-site.mjs"), validator);
+copyFileSync(join(root, "scripts", "analytics-release-policy.mjs"), join(fixture, "scripts", "analytics-release-policy.mjs"));
 
 const homepage = readFileSync(join(root, "index.html"), "utf8");
 const originalCanonical = homepage.match(/<link\b[^>]*\brel\s*=\s*["']canonical["'][^>]*>/iu)?.[0];

@@ -4,6 +4,7 @@ import { dirname, join, normalize, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { analyticsConfig } from "../assets/analytics-config.mjs";
 import { analyticsSchema } from "../assets/analytics-schema.mjs";
+import { validateProductionAnalyticsConfig } from "./analytics-release-policy.mjs";
 
 const root = normalize(join(dirname(fileURLToPath(import.meta.url)), ".."));
 const siteOrigin = process.env.SITE_ORIGIN ?? "https://qrspell.app";
@@ -430,9 +431,8 @@ function validateAnalyticsBundle() {
     if (manifest.sha256 !== checksum || manifest.version !== "1.434.17" || manifest.entrypoint !== "dist/module.slim.no-external.js") {
         errors.push("PostHog SDK must match the approved pinned manifest.");
     }
-    if (analyticsConfig.enabled !== false || analyticsConfig.environment !== "production" || analyticsConfig.token !== "") {
-        errors.push("Production analytics must remain disabled until the production gates pass.");
-    }
+    const configError = validateProductionAnalyticsConfig(analyticsConfig);
+    if (configError) errors.push(configError);
 }
 
 function validateAnalyticsRoute(htmlFile, html) {

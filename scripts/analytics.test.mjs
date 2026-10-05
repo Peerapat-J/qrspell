@@ -8,6 +8,7 @@ import { analyticsSchema } from "../assets/analytics-schema.mjs";
 import { sanitizePostHogEvent, validateEvent } from "../assets/analytics-contract.mjs";
 import { sdkVersion } from "../assets/analytics-posthog.mjs";
 import { browserSchemaSource } from "./generate-analytics-schema.mjs";
+import { validateProductionAnalyticsConfig } from "./analytics-release-policy.mjs";
 
 const token = "phc_QRSpellUnitTestOnly";
 const config = { enabled: true, environment: "production", token };
@@ -42,8 +43,8 @@ function envelope(overrides = {}) {
 }
 const transport = { token, environment: "production", sdkVersion };
 
-test("deployed singleton stays disabled before the production gates pass", async () => {
-    assert.deepEqual(analyticsConfig, { enabled: false, environment: "production", token: "" });
+test("deployed singleton follows release policy and cannot capture outside a browser", async () => {
+    assert.equal(validateProductionAnalyticsConfig(analyticsConfig), null);
     assert.equal(await initAnalytics(), false);
     assert.equal(captureEvent("generator_viewed"), false);
 });
