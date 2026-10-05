@@ -15,8 +15,9 @@ Reuse the recorded results and collect only missing project settings and manual
 effects in one pre-release session. The 2026-10-05 focused browser run passed
 29 tests for schema-v2 SDK payloads, storage and failure handling; see
 [schema-v2-validation.md](schema-v2-validation.md). Issue #45 is closed and its
-implementation in PR #54 is merged. Keep its remaining manual evidence
-separate from implementation status.
+implementation in PR #54 is merged. The owner reported real clipboard, opened
+PNG and normal/blocked/tracker-blocker journeys passed on 2026-10-05. Keep this
+manual evidence separate from automated results and implementation status.
 
 Before enabling capture, finish the project/privacy review and real Generator
 clipboard/download/blocker checks, then prepare the production config and
@@ -39,7 +40,7 @@ project:
 
 - [x] EU Cloud and timezone `Asia/Bangkok` (screenshots supplied on 2026-10-02).
 - [x] Cookieless tracking enabled in Web analytics (screenshot on 2026-10-02).
-- [ ] Client IP discard enabled (reconfirm the existing setting).
+- [x] Client IP discard enabled (owner confirmed on 2026-10-05).
 - [ ] Product-event retention is 12 months or less.
 - [ ] DPA, current subprocessors, international processing and schema-v2
       privacy/consent decision reviewed.
@@ -139,9 +140,9 @@ in the activation funnel. Do not mix Cloudflare counts into these rates.
 | Field | Value |
 | --- | --- |
 | Project selection | Existing QRSpell EU project selected for sandbox and production on 2026-10-02; URL/ID in private release record |
-| Project settings and DPA review | Asia/Bangkok and cookieless enabled shown on 2026-10-02; Web vitals autocapture off shown on 2026-10-05; remaining settings and DPA review pending |
+| Project settings and DPA review | Asia/Bangkok and cookieless enabled shown on 2026-10-02; Web vitals autocapture off shown and client IP discard confirmed on 2026-10-05; remaining settings and DPA review pending |
 | Schema-v2 sandbox provider check | Both quality cases received; export, Generator view and page view Raw records inspected on 2026-10-02; verified zero-warning Properties and v2 export method counts inspected on 2026-10-05; remaining checks in [schema-v2-validation.md](schema-v2-validation.md) |
-| #45 implementation and manual effects | Issue closed and PR #54 merged; automated v2 SDK/network/storage/failure checks pass (29 tests, 2026-10-05); real clipboard/disk/blocker evidence remains pending |
+| #45 implementation and manual effects | Issue closed and PR #54 merged; automated v2 SDK/network/storage/failure checks pass (29 tests, 2026-10-05); owner reported real clipboard, opened PNG and normal/blocked/tracker-blocker journeys passed on 2026-10-05 |
 | Release commit and date/time | Pending |
 | Dashboard and insight URLs | Pending |
 | Production raw-event and canary results | Pending |

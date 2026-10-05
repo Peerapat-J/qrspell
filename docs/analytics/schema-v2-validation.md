@@ -158,6 +158,31 @@ is closed and [PR #54](https://github.com/Peerapat-J/qrspell/pull/54) is merged.
 The implementation does not need to be repeated. That repository status alone
 is not evidence that the separate manual effects above were checked.
 
+## 2026-10-05: owner reports real manual checks passed
+
+The owner tested the real Generator served locally with an in-memory sandbox
+configuration and the existing project's public token. The temporary QA server
+leaves the repository production configuration disabled and tokenless. It also
+provides a second page whose additional CSP blocks analytics connections.
+
+The owner reported in chat:
+
+- The normal and blocked-analytics journeys passed.
+- Copy produced an image that could be pasted into another application.
+- The downloaded PNG opened successfully.
+- The Generator remained usable both with and without the owner's tracker
+  blocker enabled.
+- Discard client IP data is enabled in the PostHog project.
+
+**Pass as owner-reported manual evidence:** normal and blocked Generator
+behavior, actual clipboard paste, opened PNG and tracker-blocker compatibility.
+These checks are separate from the automated clipboard stubs and denied
+downloads. The tracker-blocker product/version and browser version were not
+specified; no request trace was supplied. The report establishes product
+usability, not independent proof that a blocker suppressed every analytics
+request. Live production event, storage and blocker-suppression checks remain
+part of the release canary.
+
 ## Remaining provider and manual checks
 
 | Check | Status |
@@ -170,7 +195,7 @@ is not evidence that the separate manual effects above were checked.
 | Ingested properties contain only approved data | Pass for the four complete Raw records above; both quality cases inspected through Properties |
 | Final outbound HTTP body contains only approved data | Pass in the automated v2 SDK/Generator tests; live production inspection remains part of the release canary |
 | Local-origin analytics cookies, localStorage and sessionStorage absent | Pass in the automated v2 browser tests; live production storage inspection remains part of the release canary |
-| Real Generator clipboard, disk and tracker-blocker checks | Separate manual evidence pending; #45 implementation is merged and automated failure checks pass |
+| Real Generator clipboard, disk and tracker-blocker checks | Pass as owner-reported manual evidence on 2026-10-05; production blocker-suppression trace remains part of the canary |
 | Remaining project settings, retention and DPA review | Pending |
 | Production delivery, dashboard and canary checks | Pending reviewed release |
 
