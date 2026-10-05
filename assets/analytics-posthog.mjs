@@ -1,4 +1,4 @@
-import { sanitizePostHogEvent } from "./analytics-contract.mjs";
+import { sanitizePostHogEvent } from "./analytics-contract.mjs?v=20261005a";
 
 export const sdkVersion = "1.434.17";
 export const ingestionOrigin = "https://eu.i.posthog.com";

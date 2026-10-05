@@ -84,7 +84,7 @@ const customSelectInstances = [];
 const customColorInstances = [];
 
 // A failed analytics import must never prevent controls or rendering from starting.
-import("./generator-analytics.mjs?v=20260930a").then(({ createGeneratorAnalytics }) => {
+import("./generator-analytics.mjs?v=20261005a").then(({ createGeneratorAnalytics }) => {
     generatorAnalytics = createGeneratorAnalytics();
     trackGenerator("changed", analyticsRevision, localAnalyticsConfiguration());
     if (generatorEverStarted) trackGenerator("started");

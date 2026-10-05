@@ -1,5 +1,5 @@
-import { initAnalytics, captureEvent } from "./analytics.mjs";
-import { analyticsSchema } from "./analytics-schema.mjs";
+import { initAnalytics, captureEvent } from "./analytics.mjs?v=20261005a";
+import { analyticsSchema } from "./analytics-schema.mjs?v=20261005a";
 
 // One lifecycle per document, including repeated callers while init is pending.
 const starts = new WeakMap();

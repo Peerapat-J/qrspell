@@ -1112,9 +1112,10 @@ async function waitFor(client, expression, timeout = 7_000) {
     throw new Error(`Timed out waiting for browser condition: ${expression}`);
 }
 
-async function startStaticServer() {
+async function startStaticServer({ respond } = {}) {
     const server = createServer((request, response) => {
         try {
+            if (respond?.(request, response)) return;
             const pathname = decodeURIComponent(new URL(request.url, "http://localhost").pathname);
             const relative = pathname === "/"
                 ? "index.html"
@@ -1448,7 +1449,7 @@ test("privacy-safe PostHog foundation audits the real pinned SDK without product
 
                 if (mode !== "wrapper blocked") {
                     const initialized = await client.evaluate(`(async () => {
-                        const { createAnalytics } = await import('../assets/analytics.mjs');
+                        const { createAnalytics } = await import('../assets/analytics.mjs?v=20261005a');
                         window.__analytics = createAnalytics({ config: { enabled: true, environment: 'sandbox', token: 'phc_QRSpellBrowserTestOnly' } });
                         return window.__analytics.initAnalytics();
                     })()`);
@@ -1563,7 +1564,7 @@ test("website events audit SDK envelopes and native navigation without productio
         });
         await waitFor(client, "document.readyState === 'complete' && Boolean(document.body?.getAttribute('data-analytics-route'))");
         return client.evaluate(`(async () => {
-            try { return await (async () => (await import('/assets/site-analytics.mjs')).startSiteAnalytics())(); }
+            try { return await (async () => (await import('/assets/site-analytics.mjs?v=20261005a')).startSiteAnalytics())(); }
             catch { return false; }
         })()`);
     };
@@ -1672,7 +1673,7 @@ test("website events audit SDK envelopes and native navigation without productio
                 await waitFor(client, "document.styleSheets.length > 0 && document.images[0]?.naturalWidth > 0");
                 assert.deepEqual(await client.evaluate("window.__siteCspViolations"), [], `${route} assets and SDK must work under CSP`);
                 await client.evaluate(`document.body.append(document.createTextNode(${JSON.stringify(canaries[3])})); location.hash = 'changed';`);
-                assert.equal(await client.evaluate(`(async () => (await import('/assets/site-analytics.mjs')).startSiteAnalytics())()`), true);
+                assert.equal(await client.evaluate(`(async () => (await import('/assets/site-analytics.mjs?v=20261005a')).startSiteAnalytics())()`), true);
                 assert.deepEqual(websiteEvents().map(event => [event.event, event.properties.route]), [["site_page_viewed", route]]);
                 assert.deepEqual(await client.evaluate("({ cookies: document.cookie, local: Object.keys(localStorage), session: Object.keys(sessionStorage) })"), { cookies: "", local: [], session: [] });
                 audit();
@@ -1699,7 +1700,7 @@ test("website events audit SDK envelopes and native navigation without productio
         await context.test("legal redirect stays immediate and reports its destination document", async () => {
             await load("/legal/");
             await waitFor(client, "document.body?.getAttribute('data-analytics-route') === 'acknowledgements'");
-            await client.evaluate(`(async () => (await import('/assets/site-analytics.mjs')).startSiteAnalytics())()`);
+            await client.evaluate(`(async () => (await import('/assets/site-analytics.mjs?v=20261005a')).startSiteAnalytics())()`);
             await waitForRequest(() => events().some(event => event.properties.route === "acknowledgements"));
             assert.equal(events().filter(event => event.properties.route === "acknowledgements").length, 1);
             assert.ok(events().filter(event => event.properties.route === "legal").length <= 1);
@@ -1997,7 +1998,7 @@ test("Generator product events audit real SDK traffic and survive analytics fail
         });
         await waitFor(client, `document.readyState === 'complete' && Boolean(document.querySelector('#module-shape-trigger'))`);
         await client.evaluate(`(async () => {
-            try { return await (await import('/assets/analytics.mjs')).initAnalytics(); } catch { return false; }
+            try { return await (await import('/assets/analytics.mjs?v=20261005a')).initAnalytics(); } catch { return false; }
         })()`);
     };
     const type = value => client.evaluate(`(() => {
@@ -2190,6 +2191,137 @@ test("Generator product events audit real SDK traffic and survive analytics fail
         await Promise.all([...pending]);
         assert.deepEqual(errors, []);
         context.diagnostic('Real SDK with fake sandbox config/token; every external request intercepted. UI success is checked independently of ingestion failures. Clipboard stubbed; downloads initiated and denied.');
+    } finally {
+        await cleanupTestResources({ client, browser, site });
+    }
+});
+
+
+test("returning browsers with cached legacy analytics still send schema-v2 quality events", { timeout: 30_000 }, async () => {
+    let site;
+    let browser;
+    let client;
+    const version = '?v=20261005a';
+    const token = 'phc_QRSpellWarmCacheTestOnly';
+    const legacy = new Map([
+        ['/qr-code-generator/generator-event-properties.mjs', `
+            export function generationProperties(configuration, outcome, warningCount) {
+                if (![0, 1, 2, 3, 4].includes(warningCount)) return null;
+                return { outcome, warning_count: warningCount };
+            }
+            export function exportProperties() { return null; }
+        `],
+        ['/assets/analytics-schema.mjs', `export const analyticsSchema = ${readFileSync(resolve(root, 'docs/analytics/event-schema-v1.json'), 'utf8')};`],
+        ['/assets/analytics-config.mjs', `export const analyticsConfig = { enabled: false, environment: 'production', token: '' };`],
+    ]);
+    const hits = new Map();
+    const requests = [];
+    const moduleUrls = [];
+    const pending = new Set();
+    const errors = [];
+    const events = () => requests.flatMap(request => JSON.parse(request.postData).batch);
+    const quality = () => events().filter(event => event.event === 'qr_generation_completed');
+    try {
+        site = await startStaticServer({ respond(request, response) {
+            const url = new URL(request.url, 'http://localhost');
+            const key = url.pathname + url.search;
+            if (key === '/cache-prime.html') {
+                response.writeHead(200, { 'Content-Type': 'text/html' });
+                response.end('<!doctype html><title>Legacy cache fixture</title>');
+                return true;
+            }
+            if (legacy.has(key)) {
+                hits.set(key, (hits.get(key) || 0) + 1);
+                response.writeHead(200, { 'Content-Type': 'text/javascript', 'Cache-Control': 'public, max-age=31536000, immutable' });
+                response.end(legacy.get(key));
+                return true;
+            }
+            if (key === '/assets/analytics-config.mjs' + version) {
+                response.writeHead(200, { 'Content-Type': 'text/javascript', 'Cache-Control': 'no-store' });
+                response.end(`export const analyticsConfig = { enabled: true, environment: 'sandbox', token: '${token}' };`);
+                return true;
+            }
+            return false;
+        } });
+        browser = await startBrowser();
+        const target = await createTarget(browser.debugOrigin, 'about:blank');
+        client = await CdpClient.connect(target.webSocketDebuggerUrl);
+        await client.send('Page.enable');
+        await client.send('Network.enable', { maxPostDataSize: 2_000_000 });
+        await client.send('Network.setUserAgentOverride', { userAgent: (await client.evaluate('navigator.userAgent')).replace('HeadlessChrome', 'Chrome') });
+        await client.send('Page.addScriptToEvaluateOnNewDocument', { source: "Object.defineProperty(navigator, 'webdriver', { value: false });" });
+        client.on('Network.requestWillBeSent', ({ request }) => {
+            const url = new URL(request.url);
+            if (url.origin === site.origin && url.pathname.endsWith('.mjs')) moduleUrls.push(url.pathname + url.search);
+            if (url.origin === 'https://eu.i.posthog.com' && request.method === 'POST') requests.push(request);
+        });
+        // Intercept only external traffic, leaving local HTTP caching enabled.
+        client.on('Fetch.requestPaused', ({ requestId, request }) => {
+            const operation = (async () => {
+                if (new URL(request.url).origin !== 'https://eu.i.posthog.com') {
+                    return client.send('Fetch.failRequest', { requestId, errorReason: 'BlockedByClient' });
+                }
+                return client.send('Fetch.fulfillRequest', {
+                    requestId, responseCode: 200,
+                    responseHeaders: [
+                        { name: 'Content-Type', value: 'application/json' },
+                        { name: 'Access-Control-Allow-Origin', value: site.origin },
+                        { name: 'Access-Control-Allow-Methods', value: 'POST, OPTIONS' },
+                        { name: 'Access-Control-Allow-Headers', value: 'content-type' },
+                    ], body: Buffer.from('{"status":1}').toString('base64'),
+                });
+            })().catch(error => errors.push(error)).finally(() => pending.delete(operation));
+            pending.add(operation);
+        });
+        await client.send('Fetch.enable', { patterns: [{ urlPattern: 'https://*' }] });
+        await client.send('Page.navigate', { url: site.origin + '/cache-prime.html' });
+        await waitFor(client, "document.title === 'Legacy cache fixture' && document.readyState === 'complete'");
+        for (const path of legacy.keys()) {
+            await client.evaluate(`(async () => {
+                await (await fetch(${JSON.stringify(path)})).text();
+                await (await fetch(${JSON.stringify(path)}, { cache: 'force-cache' })).text();
+            })()`);
+            assert.equal(hits.get(path), 1, `Legacy ${path} must really be in HTTP cache`);
+        }
+        assert.equal(await client.evaluate(`(async () => {
+            const { generationProperties } = await import('/qr-code-generator/generator-event-properties.mjs');
+            return generationProperties({}, 'verified', { warning_count: 0 }) === null
+                && generationProperties({}, 'verified', 0).warning_count === 0;
+        })()`), true, 'The legacy numeric API reproduces the dropped summary-object event');
+        moduleUrls.length = 0;
+        await navigate(client, site.origin + '/qr-code-generator/');
+        await waitForRequest(() => moduleUrls.includes('/qr-code-generator/generator-event-properties.mjs' + version));
+        for (const path of legacy.keys()) assert.ok(!moduleUrls.includes(path), `Current graph must bypass cached ${path}`);
+        await client.evaluate(`(() => {
+            const input = document.querySelector('#qr-content');
+            input.value = 'WARM_CACHE_PRIVATE_CONTENT';
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+        })()`);
+        await waitForRequest(() => quality().length === 1);
+        assert.equal(quality()[0].properties.outcome, 'verified');
+        assert.equal(quality()[0].properties.warning_count, 0);
+        await client.evaluate(`(() => {
+            for (const [id, value] of [['foreground-color', '#777777'], ['background-color', '#666666']]) {
+                const input = document.getElementById(id); input.value = value;
+                input.dispatchEvent(new Event('input', { bubbles: true }));
+                input.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+        })()`);
+        await waitForRequest(() => quality().length === 2);
+        assert.equal(quality()[1].properties.warning_count, 2);
+        assert.equal(quality()[1].properties.warning_inverted_modules, true);
+        assert.equal(quality()[1].properties.warning_low_contrast, true);
+        for (const event of quality()) {
+            assert.equal(event.properties.analytics_schema_version, 2);
+            assert.equal(event.properties.environment, 'sandbox');
+        }
+        for (const name of ['site_page_viewed', 'generator_viewed', 'generator_started']) {
+            assert.equal(events().filter(event => event.event === name).length, 1, `One shared lifecycle for ${name}`);
+        }
+        assert.ok(!JSON.stringify(requests).includes('WARM_CACHE_PRIVATE_CONTENT'));
+        assert.ok(requests.every(request => JSON.parse(request.postData).api_key === token));
+        await Promise.all([...pending]);
+        assert.deepEqual(errors, []);
     } finally {
         await cleanupTestResources({ client, browser, site });
     }

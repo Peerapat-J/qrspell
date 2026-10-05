@@ -1,5 +1,5 @@
-import { analyticsSchema } from "../assets/analytics-schema.mjs";
-import { snapshotProperties } from "../assets/analytics-contract.mjs";
+import { analyticsSchema } from "../assets/analytics-schema.mjs?v=20261005a";
+import { snapshotProperties } from "../assets/analytics-contract.mjs?v=20261005a";
 
 const settingNames = {
     module_shape: "moduleShape",

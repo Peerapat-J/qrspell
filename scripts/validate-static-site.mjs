@@ -416,7 +416,7 @@ function normalizeSiteBasePath(basePath) {
 function validateAnalyticsBootstrap(htmlFile, html) {
     const scripts = [...html.matchAll(/<script\b[^>]*analytics-bootstrap\.mjs[^>]*><\/script>/giu)];
     const prefix = htmlFile === "index.html" ? "" : "../";
-    const expected = `<script type="module" src="${prefix}assets/analytics-bootstrap.mjs?v=20260930a"></script>`;
+    const expected = `<script type="module" src="${prefix}assets/analytics-bootstrap.mjs?v=20261005a"></script>`;
     if (scripts.length !== 1 || scripts[0][0] !== expected) {
         errors.push(`${htmlFile} must load exactly one local analytics bootstrap module.`);
     }
